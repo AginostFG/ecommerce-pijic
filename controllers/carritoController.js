@@ -1,6 +1,6 @@
 /**
  * Archivo: controllers/carritoController.js
- * Propósito: Gestionar el carrito de compras y la ejecución del checkout (CU01.2, CU01.5, Ajustes 1, 4 y Actualización 2.4).
+ * Propósito: Gestionar el carrito de compras y la ejecución del checkout (CU01.2, CU01.5, Ajustes 1, 4, Actualización 2.4 y M7).
  */
 const CarritoModel = require('../models/carritoModel');
 const PuntosService = require('../services/puntosService');
@@ -9,17 +9,33 @@ const { configPuntos } = require('../config/puntos');
 class CarritoController {
   static async agregarAlCarrito(req, res) {
     try {
-      const { id_inventario, cantidad } = req.body;
-      const cantNum = parseInt(cantidad, 10) || 1;
+      const { id_inventario, id_producto, cantidad } = req.body;
+      const cantNum = parseInt(cantidad, 10);
+
+      if (!Number.isInteger(cantNum) || cantNum <= 0) {
+        req.session.mensajeError = 'La cantidad solicitada debe ser un número entero mayor a cero.';
+        return res.redirect(id_producto ? `/catalogo/producto/${id_producto}` : '/catalogo');
+      }
 
       const itemInv = await CarritoModel.obtenerItemInventario(id_inventario);
       if (!itemInv) {
-        req.session.mensajeError = 'La combinación de producto seleccionada no es válida o el producto fue dado de baja.';
+        req.session.mensajeError = 'La combinación de talla y color seleccionada no es válida o el producto fue dado de baja.';
         return res.redirect('/catalogo');
       }
 
+      // Si se envió id_producto desde el navegador, verificar que coincida con la variante real
+      if (id_producto && String(itemInv.id_producto) !== String(id_producto)) {
+        req.session.mensajeError = 'La variante seleccionada no corresponde al producto indicado.';
+        return res.redirect('/catalogo');
+      }
+
+      if (itemInv.cantidad_stock <= 0) {
+        req.session.mensajeError = `La combinación ${itemInv.nombre_talla} · ${itemInv.nombre_color} se encuentra agotada.`;
+        return res.redirect(`/catalogo/producto/${itemInv.id_producto}`);
+      }
+
       if (itemInv.cantidad_stock < cantNum) {
-        req.session.mensajeError = `Stock insuficiente. Solo hay ${itemInv.cantidad_stock} unidades disponibles.`;
+        req.session.mensajeError = `Stock insuficiente. Solo hay ${itemInv.cantidad_stock} unidades disponibles de esta variante.`;
         return res.redirect(`/catalogo/producto/${itemInv.id_producto}`);
       }
 
@@ -27,11 +43,11 @@ class CarritoController {
         req.session.carrito = [];
       }
 
-      const index = req.session.carrito.findIndex((i) => i.id_inventario == id_inventario);
+      const index = req.session.carrito.findIndex((i) => i.id_inventario == itemInv.id_inventario);
       if (index > -1) {
         const nuevaCantidad = req.session.carrito[index].cantidad + cantNum;
         if (itemInv.cantidad_stock < nuevaCantidad) {
-          req.session.mensajeError = `No puedes superar el stock disponible (${itemInv.cantidad_stock} unidades).`;
+          req.session.mensajeError = `No puedes superar el stock disponible (${itemInv.cantidad_stock} unidades para Talla ${itemInv.nombre_talla} · ${itemInv.nombre_color}).`;
           return res.redirect('/carrito');
         }
         req.session.carrito[index].cantidad = nuevaCantidad;
@@ -44,6 +60,7 @@ class CarritoController {
           nombre_producto: itemInv.nombre_producto,
           nombre_talla: itemInv.nombre_talla,
           nombre_color: itemInv.nombre_color,
+          codigo_hex: itemInv.codigo_hex || '#71717A',
           precio: Number(itemInv.precio),
           stock_maximo: itemInv.cantidad_stock,
           dado_de_baja: false,
@@ -51,7 +68,7 @@ class CarritoController {
         });
       }
 
-      req.session.mensajeExito = 'Prenda agregada al carrito exitosamente.';
+      req.session.mensajeExito = `Prenda agregada al carrito: ${itemInv.nombre_producto} (Talla ${itemInv.nombre_talla} · ${itemInv.nombre_color}).`;
       return res.redirect('/carrito');
     } catch (error) {
       console.error('Error al agregar al carrito:', error);
@@ -96,7 +113,7 @@ class CarritoController {
             return res.redirect('/carrito');
           }
           if (req.session.carrito[index].cantidad + 1 > itemInv.cantidad_stock) {
-            req.session.mensajeError = 'Alcanzaste el límite de stock disponible para esta prenda.';
+            req.session.mensajeError = 'Alcanzaste el límite de stock disponible para esta variante.';
             return res.redirect('/carrito');
           }
           req.session.carrito[index].cantidad += 1;

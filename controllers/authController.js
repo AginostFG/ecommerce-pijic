@@ -1,10 +1,16 @@
 /**
  * Archivo: controllers/authController.js
- * Propósito: Controladores para login, registro de clientes y logout (Ajuste 3).
+ * Propósito: Controladores para login, registro de clientes (con documento M5) y logout (Ajuste 3).
  */
 const bcrypt = require('bcrypt');
 const UsuarioModel = require('../models/usuarioModel');
 const { obtenerRutaPorRol } = require('../helpers/rutaPorRol');
+
+function validarFormatoDocumento(documento) {
+  if (!documento || !String(documento).trim()) return true; // Opcional
+  const limpio = String(documento).trim();
+  return /^[A-Za-z0-9\-]{5,20}$/.test(limpio);
+}
 
 class AuthController {
   static mostrarLogin(req, res) {
@@ -58,7 +64,7 @@ class AuthController {
     if (req.session && req.session.usuario) {
       return res.redirect(obtenerRutaPorRol(req.session.usuario));
     }
-    res.render('auth/register', { titulo: 'Registro de Cliente - PIJIC Menswear' });
+    res.render('auth/register', { titulo: 'Registro de Cliente - PIJIC Menswear', datosPrevios: {} });
   }
 
   static async procesarRegistro(req, res) {
@@ -67,14 +73,35 @@ class AuthController {
         return res.redirect(obtenerRutaPorRol(req.session.usuario));
       }
 
-      const { nombre, correo, contrasena, direccion } = req.body;
-      const existente = await UsuarioModel.buscarPorCorreo(correo ? correo.trim() : '');
+      const { nombre, tipo_documento = 'CC', documento = '', correo, contrasena, direccion } = req.body;
+      const docLimpio = documento ? documento.trim() : '';
 
+      if (!validarFormatoDocumento(docLimpio)) {
+        return res.render('auth/register', {
+          titulo: 'Registro de Cliente',
+          error: 'El número de documento debe tener entre 5 y 20 caracteres alfanuméricos o guiones.',
+          datosPrevios: { nombre, tipo_documento, documento: docLimpio, correo, direccion }
+        });
+      }
+
+      const existente = await UsuarioModel.buscarPorCorreo(correo ? correo.trim() : '');
       if (existente) {
         return res.render('auth/register', {
           titulo: 'Registro de Cliente',
-          error: 'El correo electrónico ya se encuentra registrado.'
+          error: 'El correo electrónico ya se encuentra registrado.',
+          datosPrevios: { nombre, tipo_documento, documento: docLimpio, correo, direccion }
         });
+      }
+
+      if (docLimpio) {
+        const docExistente = await UsuarioModel.buscarPorDocumento(docLimpio);
+        if (docExistente) {
+          return res.render('auth/register', {
+            titulo: 'Registro de Cliente',
+            error: 'El número de documento ya se encuentra registrado por otro usuario.',
+            datosPrevios: { nombre, tipo_documento, documento: docLimpio, correo, direccion }
+          });
+        }
       }
 
       const saltRounds = 10;
@@ -82,6 +109,8 @@ class AuthController {
 
       await UsuarioModel.crearCliente({
         nombre: nombre.trim(),
+        tipo_documento,
+        documento: docLimpio || null,
         correo: correo.trim(),
         contrasenaHash,
         direccion: direccion ? direccion.trim() : ''

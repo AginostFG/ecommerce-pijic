@@ -1,15 +1,18 @@
 /**
  * Archivo: models/carritoModel.js
- * Propósito: Gestionar inventario, validación de bajas en carrito y transacciones de checkout (Ajustes 1, 4 y Actualización 2.4).
+ * Propósito: Gestionar inventario, validación de bajas/stock en carrito y transacciones de checkout (Ajustes 1, 4, Actualización 2.4 y M7).
  */
 const { pool } = require('../config/db');
 const PuntosService = require('../services/puntosService');
 
 class CarritoModel {
   static async obtenerItemInventario(id_inventario) {
+    if (!id_inventario || !/^\d+$/.test(String(id_inventario).trim())) {
+      return null;
+    }
     const [rows] = await pool.query(
       `SELECT i.*, p.nombre_producto, p.precio, p.id_proveedor, p.estado AS producto_activo,
-              t.nombre_talla, col.nombre_color 
+              t.nombre_talla, col.nombre_color, col.codigo_hex
        FROM inventario i
        JOIN productos p ON i.id_producto = p.id_producto
        JOIN tallas t ON i.id_talla = t.id_talla
@@ -17,10 +20,10 @@ class CarritoModel {
        WHERE i.id_inventario = ? AND p.estado = TRUE`,
       [id_inventario]
     );
-    return rows[0];
+    return rows[0] || null;
   }
 
-  // Actualización 2.4: Verificar estado actual en BD de los ítems en sesión del carrito
+  // Actualización 2.4 + M7: Verificar estado actual en BD y código hex de los ítems en sesión del carrito
   static async sincronizarEstadoCarrito(carritoItems = []) {
     if (!carritoItems || carritoItems.length === 0) {
       return { items: [], hayDadosDeBaja: false };
@@ -28,9 +31,12 @@ class CarritoModel {
 
     const ids = carritoItems.map((i) => i.id_inventario);
     const [rows] = await pool.query(
-      `SELECT i.id_inventario, i.cantidad_stock, p.precio, p.estado AS producto_activo, p.nombre_producto
+      `SELECT i.id_inventario, i.cantidad_stock, p.precio, p.estado AS producto_activo, p.nombre_producto,
+              t.nombre_talla, col.nombre_color, col.codigo_hex
        FROM inventario i
        JOIN productos p ON i.id_producto = p.id_producto
+       JOIN tallas t ON i.id_talla = t.id_talla
+       JOIN colores col ON i.id_color = col.id_color
        WHERE i.id_inventario IN (?)`,
       [ids]
     );
@@ -44,6 +50,9 @@ class CarritoModel {
       if (!activo) hayDadosDeBaja = true;
       return {
         ...item,
+        nombre_talla: infoBD ? infoBD.nombre_talla : item.nombre_talla,
+        nombre_color: infoBD ? infoBD.nombre_color : item.nombre_color,
+        codigo_hex: infoBD ? (infoBD.codigo_hex || '#71717A') : (item.codigo_hex || '#71717A'),
         precio: infoBD ? Number(infoBD.precio) : item.precio,
         stock_maximo: infoBD ? Number(infoBD.cantidad_stock) : 0,
         dado_de_baja: !activo

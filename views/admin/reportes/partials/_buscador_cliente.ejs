@@ -1,0 +1,144 @@
+<%
+  const busqTexto = (typeof filtros !== 'undefined' && filtros.q_cliente) ? filtros.q_cliente : '';
+  const idClienteSel = (typeof filtros !== 'undefined' && filtros.id_cliente) ? filtros.id_cliente : '';
+%>
+
+<div class="buscador-cliente-box" style="flex:2; min-width:290px; position:relative;">
+  <label for="input-buscar-cliente" style="display:block; margin-bottom:6px; font-weight:600; font-size:0.88rem; color:var(--text-secondary);">
+    Buscar Cliente por Nombre, Documento o Correo *
+  </label>
+  <input type="hidden" name="id_cliente" id="input-id-cliente" value="<%= idClienteSel %>">
+  <div style="display:flex; gap:8px; align-items:center;">
+    <input type="search"
+           name="q_cliente"
+           id="input-buscar-cliente"
+           value="<%= busqTexto || (typeof clienteFicha !== 'undefined' && clienteFicha ? (clienteFicha.nombre + (clienteFicha.documento ? ' - ' + (clienteFicha.tipo_documento || 'CC') + ' ' + clienteFicha.documento : '')) : '') %>"
+           placeholder="Escribe al menos 2 caracteres (ej: Juan, 1028456789, correo@...)..."
+           autocomplete="off"
+           aria-label="Buscar cliente por nombre, documento o correo"
+           aria-expanded="false"
+           aria-controls="lista-autocompletado-clientes"
+           style="flex:1;">
+    <% if (idClienteSel || busqTexto) { %>
+      <a href="/admin/reportes/historial-cliente" class="btn-sm" title="Cambiar / Limpiar cliente">✕ Cambiar</a>
+    <% } %>
+  </div>
+  <small style="color:var(--text-muted); font-size:0.77rem;">
+    Puedes elegir de la lista en vivo o presionar <strong>Consultar</strong> para buscar coincidencias parciales.
+  </small>
+
+  <!-- Contenedor desplegable de autocompletado en vivo -->
+  <ul id="lista-autocompletado-clientes"
+      role="listbox"
+      style="display:none; position:absolute; left:0; right:0; top:72px; background:#fff; border:1px solid var(--border-color); border-radius:var(--radius-sm); box-shadow:var(--shadow-md); list-style:none; margin:0; padding:4px 0; max-height:280px; overflow-y:auto; z-index:200;">
+  </ul>
+</div>
+
+<script>
+  (function() {
+    const inputQ = document.getElementById('input-buscar-cliente');
+    const inputId = document.getElementById('input-id-cliente');
+    const lista = document.getElementById('lista-autocompletado-clientes');
+    if (!inputQ || !lista) return;
+
+    let timerDebounce = null;
+
+    function cerrarLista() {
+      lista.style.display = 'none';
+      inputQ.setAttribute('aria-expanded', 'false');
+    }
+
+    inputQ.addEventListener('input', function() {
+      const q = this.value.trim();
+      // Al modificar el texto manualmente, limpiamos el id_cliente fijo para permitir nueva búsqueda por texto si envía el form
+      if (inputId) inputId.value = '';
+
+      if (timerDebounce) clearTimeout(timerDebounce);
+
+      if (q.length < 2) {
+        lista.innerHTML = '';
+        cerrarLista();
+        return;
+      }
+
+      timerDebounce = setTimeout(function() {
+        fetch('/admin/api/clientes/buscar?q=' + encodeURIComponent(q), {
+          headers: { 'Accept': 'application/json' }
+        })
+          .then(function(res) {
+            if (!res.ok) throw new Error('Error en búsqueda');
+            return res.json();
+          })
+          .then(function(data) {
+            const clientes = (data && data.clientes) ? data.clientes : [];
+            lista.innerHTML = '';
+
+            if (clientes.length === 0) {
+              const liVacio = document.createElement('li');
+              liVacio.style.padding = '10px 14px';
+              liVacio.style.color = 'var(--text-muted)';
+              liVacio.style.fontSize = '0.86rem';
+              liVacio.textContent = 'Sin coincidencias para "' + q + '"';
+              lista.appendChild(liVacio);
+              lista.style.display = 'block';
+              inputQ.setAttribute('aria-expanded', 'true');
+              return;
+            }
+
+            clientes.forEach(function(c) {
+              const li = document.createElement('li');
+              li.setAttribute('role', 'option');
+              li.tabIndex = 0;
+              li.style.padding = '9px 14px';
+              li.style.cursor = 'pointer';
+              li.style.borderBottom = '1px solid #f4f4f5';
+              li.style.fontSize = '0.88rem';
+
+              const docTexto = c.documento ? ((c.tipo_documento || 'CC') + ' ' + c.documento) : 'Sin documento';
+              li.innerHTML =
+                '<div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">' +
+                  '<strong>' + c.nombre.replace(/</g, '&lt;') + '</strong>' +
+                  '<span class="badge badge-info" style="font-size:0.72rem;">' + docTexto.replace(/</g, '&lt;') + '</span>' +
+                '</div>' +
+                '<div style="font-size:0.78rem; color:var(--text-secondary);">' +
+                  c.correo.replace(/</g, '&lt;') + ' · ' + (c.puntos_fidelizacion || 0) + ' pts' +
+                '</div>';
+
+              function seleccionar() {
+                inputId.value = c.id_usuario;
+                inputQ.value = c.nombre + (c.documento ? ' (' + docTexto + ')' : '');
+                cerrarLista();
+                const form = inputQ.closest('form');
+                if (form) form.submit();
+              }
+
+              li.addEventListener('click', seleccionar);
+              li.addEventListener('keydown', function(ev) {
+                if (ev.key === 'Enter' || ev.key === ' ') {
+                  ev.preventDefault();
+                  seleccionar();
+                }
+              });
+              li.addEventListener('mouseenter', function() { this.style.background = 'var(--accent-soft)'; });
+              li.addEventListener('mouseleave', function() { this.style.background = '#fff'; });
+
+              lista.appendChild(li);
+            });
+
+            lista.style.display = 'block';
+            inputQ.setAttribute('aria-expanded', 'true');
+          })
+          .catch(function() {
+            // Si fetch falla, el envío normal del formulario GET actúa como fallback
+            cerrarLista();
+          });
+      }, 300);
+    });
+
+    document.addEventListener('click', function(ev) {
+      if (!inputQ.contains(ev.target) && !lista.contains(ev.target)) {
+        cerrarLista();
+      }
+    });
+  })();
+</script>

@@ -107,20 +107,41 @@
       <h3>3. Agregar Categoría, Temporada, Talla o Color</h3>
       <form action="/admin/inventario/auxiliar" method="POST" style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;">
         <div class="form-group" style="flex:1; margin:0; min-width:120px;">
-          <label>Tipo</label>
-          <select name="tipo" required>
+          <label for="select-tipo-aux">Tipo</label>
+          <select name="tipo" id="select-tipo-aux" required onchange="document.getElementById('wrap-hex-nuevo').style.display = this.value === 'color' ? 'block' : 'none'">
             <option value="temporada">Temporada</option>
             <option value="categoria">Categoría</option>
             <option value="talla">Talla</option>
             <option value="color">Color</option>
           </select>
         </div>
-        <div class="form-group" style="flex:2; margin:0; min-width:180px;">
+        <div class="form-group" style="flex:2; margin:0; min-width:170px;">
           <label>Nombre / Valor</label>
-          <input type="text" name="valor" required placeholder="Ej: Colección Mitad de Año">
+          <input type="text" name="valor" required placeholder="Ej: Azul Petróleo">
+        </div>
+        <div class="form-group" id="wrap-hex-nuevo" style="display:none; margin:0; width:76px;">
+          <label>Muestra</label>
+          <input type="color" name="codigo_hex" value="#1E3A5F" style="height:40px; padding:2px; cursor:pointer;">
         </div>
         <button type="submit" class="btn-primary" style="width:auto;">Agregar</button>
       </form>
+
+      <!-- M7: Editor rápido de muestras hexadecimales para colores existentes -->
+      <details style="margin-top:14px;">
+        <summary style="cursor:pointer; font-size:0.85rem; font-weight:600; color:var(--accent);">
+          🎨 Editar muestras de color (Swatches del catálogo)
+        </summary>
+        <div style="margin-top:10px; display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:8px;">
+          <% colores.forEach(c => { %>
+            <form action="/admin/inventario/color/actualizar" method="POST" style="display:flex; align-items:center; gap:6px; background:var(--bg-muted); padding:6px 8px; border-radius:var(--radius-sm);">
+              <input type="hidden" name="id_color" value="<%= c.id_color %>">
+              <input type="color" name="codigo_hex" value="<%= c.codigo_hex || '#71717A' %>" title="Elegir tono para <%= c.nombre_color %>" style="width:34px; height:32px; padding:1px; border:1px solid #cbd5e1; border-radius:4px; cursor:pointer;">
+              <input type="text" name="nombre_color" value="<%= c.nombre_color %>" style="flex:1; padding:5px 7px; font-size:0.82rem;" required>
+              <button type="submit" class="btn-sm" style="padding:5px 8px; font-size:0.75rem;">OK</button>
+            </form>
+          <% }) %>
+        </div>
+      </details>
     </div>
   </div>
 </div>
@@ -202,6 +223,9 @@
                 <% if (!p.estado && p.motivo_baja) { %>
                   <br><small style="color:var(--danger-text);">Motivo baja: <%= p.motivo_baja %></small>
                 <% } %>
+                <% if (!p.estado && p.perdida_baja !== null && p.perdida_baja !== undefined) { %>
+                  <br><small style="color:var(--danger-text); font-weight:600;">Pérdida registrada: <%= formatoCOP(p.perdida_baja) %> (<%= p.unidades_en_baja || 0 %> unids.)</small>
+                <% } %>
               </td>
               <td><small><%= p.nombre_categoria %><br><strong><%= p.nombre_marca %></strong></small></td>
               <td>
@@ -220,6 +244,9 @@
                   <span class="badge badge-success">Activo</span>
                 <% } else { %>
                   <span class="badge badge-danger">Dado de baja</span>
+                  <% if (p.baja_estimada) { %>
+                    <span class="badge badge-warning" title="Calculado en migración">Estimado</span>
+                  <% } %>
                   <% if (p.fecha_baja) { %>
                     <br><small style="color:var(--text-muted); font-size:0.74rem;"><%= new Date(p.fecha_baja).toLocaleDateString('es-CO') %></small>
                   <% } %>
@@ -233,7 +260,7 @@
               <div style="display:flex; gap:6px; flex-wrap:wrap;">
                 <% if (p.estado) { %>
                   <button type="button" class="btn-danger-sm"
-                    onclick='abrirModalBaja(<%= p.id_producto %>, <%- JSON.stringify(p.nombre_producto) %>, <%= p.stock_total %>, <%= p.pedidos_pendientes_entrega %>)'>
+                    onclick='abrirModalBaja(<%= p.id_producto %>, <%- JSON.stringify(p.nombre_producto) %>, <%= Number(p.stock_total) || 0 %>, <%= Number(p.costo_promedio_ponderado) || 0 %>, <%= Number(p.pedidos_pendientes_entrega) || 0 %>)'>
                     Dar de baja
                   </button>
                 <% } else { %>
@@ -281,11 +308,13 @@
 <% } %>
 
 <div id="modal-baja" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:999; align-items:center; justify-content:center; padding:15px;">
-  <div class="card" style="max-width:500px; width:100%;">
+  <div class="card" style="max-width:520px; width:100%;">
     <h3 style="margin-top:0;">Confirmar Baja de Producto</h3>
     <p id="baja-resumen" style="color:var(--text-secondary);"></p>
+    <!-- M1: Vista previa de la pérdida que se guardará como foto en la baja -->
+    <div id="baja-perdida-preview" class="alert alert-danger" style="font-size:0.92rem; margin-bottom:14px;"></div>
     <div class="alert alert-warning" style="font-size:0.86rem;">
-      <strong>¿Qué ocurrirá?</strong> El producto dejará de mostrarse en el catálogo del cliente y se eliminará todo su stock físico actual de la tabla de inventario. Su historial de ventas y compras se conservará.
+      <strong>¿Qué ocurrirá?</strong> El producto dejará de mostrarse en el catálogo del cliente, se guardará una foto inmutable de la pérdida por las unidades descartadas y se vaciará su stock físico actual de la tabla de inventario. Su historial de ventas y compras se conservará.
     </div>
     <form action="/admin/inventario/producto/baja" method="POST">
       <input type="hidden" name="id_producto" id="baja-id-producto">
@@ -299,7 +328,7 @@
       </div>
       <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:15px;">
         <button type="button" class="btn-sm" onclick="cerrarModales()">Cancelar</button>
-        <button type="submit" class="btn-danger-sm" style="padding:9px 16px;">Confirmar Baja y Eliminar Stock</button>
+        <button type="submit" class="btn-danger-sm" style="padding:9px 16px;">Confirmar Baja y Registrar Pérdida</button>
       </div>
     </form>
   </div>
@@ -331,12 +360,18 @@
 </div>
 
 <script>
-  function abrirModalBaja(id, nombre, stock, pendientes) {
+  const fmtMoneda = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
+
+  function abrirModalBaja(id, nombre, stock, costoPromedio, pendientes) {
+    const perdida = (Number(stock) || 0) * (Number(costoPromedio) || 0);
     document.getElementById('baja-id-producto').value = id;
     document.getElementById('baja-resumen').innerHTML =
       'Prenda: <strong>#' + id + ' - ' + nombre + '</strong><br>' +
-      'Stock físico a descartar: <strong>' + stock + ' unidades</strong><br>' +
+      'Stock físico actual a descartar: <strong>' + stock + ' unidades</strong><br>' +
+      'Costo promedio ponderado actual: <strong>' + fmtMoneda.format(costoPromedio) + '</strong><br>' +
       'Pedidos pendientes de entrega que la incluyen: <strong>' + pendientes + ' pedido(s)</strong>';
+    document.getElementById('baja-perdida-preview').innerHTML =
+      '<span>📉 <strong>Se registrará una pérdida de ' + fmtMoneda.format(perdida) + '</strong> (' + stock + ' unids. × ' + fmtMoneda.format(costoPromedio) + ').</span>';
     document.getElementById('modal-baja').style.display = 'flex';
   }
 

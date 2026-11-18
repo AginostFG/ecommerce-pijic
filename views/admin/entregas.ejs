@@ -29,7 +29,9 @@
               <input type="hidden" name="id_entrega" value="<%= e.id_entrega %>">
             </td>
             <td>
-              <strong>Pedido #<%= e.id_pedido %></strong><br>
+              <a href="/admin/pedidos/<%= e.id_pedido %>" style="font-weight:700; color:var(--accent); text-decoration:none;">
+                Pedido #<%= e.id_pedido %> →
+              </a><br>
               <small><%= e.cliente_nombre %></small>
             </td>
             <td>

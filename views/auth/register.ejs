@@ -1,25 +1,40 @@
 <%- include('../partials/header') %>
+<% const prev = typeof datosPrevios !== 'undefined' && datosPrevios ? datosPrevios : {}; %>
 <div class="auth-card">
   <h2>Registro de Nuevo Cliente</h2>
-  <% if (typeof error !== 'undefined') { %>
+  <% if (typeof error !== 'undefined' && error) { %>
     <div class="alert alert-danger"><%= error %></div>
   <% } %>
   <form action="/auth/register" method="POST">
     <div class="form-group">
-      <label for="nombre">Nombre Completo:</label>
-      <input type="text" id="nombre" name="nombre" required>
+      <label for="nombre">Nombre Completo *</label>
+      <input type="text" id="nombre" name="nombre" value="<%= prev.nombre || '' %>" required>
+    </div>
+    <div style="display:flex; gap:10px;">
+      <div class="form-group" style="width:125px;">
+        <label for="tipo_documento">Tipo Doc.</label>
+        <select id="tipo_documento" name="tipo_documento">
+          <% ['CC', 'CE', 'NIT', 'Pasaporte'].forEach(td => { %>
+            <option value="<%= td %>" <%= prev.tipo_documento === td ? 'selected' : '' %>><%= td %></option>
+          <% }) %>
+        </select>
+      </div>
+      <div class="form-group" style="flex:1;">
+        <label for="documento">Número de Documento (opcional)</label>
+        <input type="text" id="documento" name="documento" value="<%= prev.documento || '' %>" placeholder="Ej: 1028456789" pattern="[A-Za-z0-9\-]{5,20}" title="Entre 5 y 20 caracteres alfanuméricos o guiones">
+      </div>
     </div>
     <div class="form-group">
-      <label for="correo">Correo Electrónico:</label>
-      <input type="email" id="correo" name="correo" required>
+      <label for="correo">Correo Electrónico *</label>
+      <input type="email" id="correo" name="correo" value="<%= prev.correo || '' %>" required>
     </div>
     <div class="form-group">
-      <label for="contrasena">Contraseña:</label>
+      <label for="contrasena">Contraseña *</label>
       <input type="password" id="contrasena" name="contrasena" required>
     </div>
     <div class="form-group">
-      <label for="direccion">Dirección de Entrega:</label>
-      <input type="text" id="direccion" name="direccion" required placeholder="Ej: Calle 50 # 45-20 Apartadó">
+      <label for="direccion">Dirección de Entrega *</label>
+      <input type="text" id="direccion" name="direccion" value="<%= prev.direccion || '' %>" required placeholder="Ej: Calle 50 # 45-20 Apartadó">
     </div>
     <button type="submit" class="btn-primary">Registrarse</button>
   </form>

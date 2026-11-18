@@ -52,7 +52,11 @@
       <% } else { %>
         <% pedidos.forEach(p => { %>
           <tr>
-            <td><strong>#<%= p.id_pedido %></strong></td>
+            <td>
+              <a href="/admin/pedidos/<%= p.id_pedido %>" style="font-weight:700; color:var(--accent); text-decoration:none;">
+                #<%= p.id_pedido %> →
+              </a>
+            </td>
             <td>
               <strong><%= p.cliente_nombre %></strong><br>
               <small style="color:var(--text-muted);"><%= p.cliente_correo %></small>

@@ -25,6 +25,7 @@ router.post('/inventario/producto/reactivar', AdminController.reactivarProducto)
 router.post('/inventario/producto/eliminar', AdminController.eliminarProductoDefinitivamente);
 router.post('/inventario/stock', AdminController.asignarStock);
 router.post('/inventario/auxiliar', AdminController.crearCatalogoAuxiliar);
+router.post('/inventario/color/actualizar', AdminController.actualizarColorHex);
 
 // CU02.5 Gestión de marcas
 router.get('/marcas', AdminController.vistaMarcas);
@@ -69,5 +70,11 @@ router.get('/consultas', (req, res) => res.redirect('/admin/reportes'));
 // Auditoría y ajuste manual de puntos por cliente
 router.get('/puntos/:id', ReporteController.verMovimientosCliente);
 router.post('/puntos/ajustar', ReporteController.ajustarPuntosCliente);
+
+// M6: Vista de detalle de pedido para Administrador
+router.get('/pedidos/:id', AdminController.verDetallePedidoAdmin);
+
+// M5: Endpoint JSON de autocompletado de clientes por nombre, documento o correo (solo Admin)
+router.get('/api/clientes/buscar', AdminController.buscarClientesJSON);
 
 module.exports = router;

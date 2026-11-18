@@ -1,17 +1,39 @@
 /**
  * Archivo: models/cuentaModel.js
- * Propósito: Consultas SQL para el perfil del cliente, movimientos de puntos e historial de pedidos (CU01.3 y Ajuste 4.6).
+ * Propósito: Consultas SQL para el perfil del cliente, actualización de documento/dirección (M5), movimientos de puntos e historial de pedidos.
  */
 const { pool } = require('../config/db');
 
 class CuentaModel {
   static async obtenerDatosCliente(id_usuario) {
     const [rows] = await pool.query(
-      `SELECT id_usuario, nombre, correo, direccion, puntos_fidelizacion, fecha_registro 
+      `SELECT id_usuario, nombre, tipo_documento, documento, correo, direccion, puntos_fidelizacion, fecha_registro 
        FROM usuarios WHERE id_usuario = ?`,
       [id_usuario]
     );
     return rows[0];
+  }
+
+  static async actualizarPerfilCliente(id_usuario, { nombre, tipo_documento, documento, direccion }) {
+    const docLimpio = documento && String(documento).trim() ? String(documento).trim() : null;
+    const tipoVal = ['CC', 'CE', 'NIT', 'Pasaporte'].includes(tipo_documento) ? tipo_documento : 'CC';
+
+    if (docLimpio) {
+      const [dup] = await pool.query(
+        'SELECT id_usuario FROM usuarios WHERE documento = ? AND id_usuario != ?',
+        [docLimpio, id_usuario]
+      );
+      if (dup.length > 0) {
+        throw new Error('El número de documento ingresado ya está registrado en otra cuenta.');
+      }
+    }
+
+    await pool.query(
+      `UPDATE usuarios 
+       SET nombre = ?, tipo_documento = ?, documento = ?, direccion = ?
+       WHERE id_usuario = ? AND id_rol = 2`,
+      [nombre.trim(), tipoVal, docLimpio, direccion ? direccion.trim() : '', id_usuario]
+    );
   }
 
   static async obtenerHistorialPedidos(id_cliente) {
@@ -67,7 +89,7 @@ class CuentaModel {
     const pedido = pedidos[0];
 
     const [detalles] = await pool.query(
-      `SELECT dp.*, pr.nombre_producto, t.nombre_talla, col.nombre_color
+      `SELECT dp.*, pr.nombre_producto, t.nombre_talla, col.nombre_color, col.codigo_hex
        FROM detalles_pedido dp
        JOIN productos pr ON dp.id_producto = pr.id_producto
        JOIN tallas t ON dp.id_talla = t.id_talla

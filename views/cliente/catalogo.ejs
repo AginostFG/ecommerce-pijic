@@ -76,6 +76,19 @@
               </div>
               <h3 style="font-size:1.1rem; margin:6px 0;"><%= prod.nombre_producto %></h3>
               <p class="precio"><%= formatoCOP(prod.precio) %></p>
+
+              <% if (prod.colores_disponibles && prod.colores_disponibles.length > 0) { %>
+                <div class="catalogo-swatches" aria-label="Colores registrados" style="display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin:8px 0;">
+                  <% prod.colores_disponibles.forEach(col => { %>
+                    <span class="mini-swatch <%= col.stock_color <= 0 ? 'agotado' : '' %>"
+                          title="<%= col.nombre_color %><%= col.stock_color <= 0 ? ' (Agotado)' : '' %>"
+                          style="background-color:<%= col.codigo_hex || '#71717A' %>;"></span>
+                  <% }) %>
+                  <small style="font-size:0.75rem; color:var(--text-muted); margin-left:2px;">
+                    <%= prod.colores_disponibles.length %> <%= prod.colores_disponibles.length === 1 ? 'color' : 'colores' %>
+                  </small>
+                </div>
+              <% } %>
             </div>
 
             <div>

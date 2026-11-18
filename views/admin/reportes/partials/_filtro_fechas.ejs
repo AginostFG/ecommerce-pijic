@@ -1,0 +1,119 @@
+<%
+  const ff = (typeof filtroFechas !== 'undefined' && filtroFechas) ? filtroFechas : {
+    desde: (typeof filtros !== 'undefined' && (filtros.desde || filtros.fecha_inicio)) || '',
+    hasta: (typeof filtros !== 'undefined' && (filtros.hasta || filtros.fecha_fin)) || '',
+    atajo: (typeof filtros !== 'undefined' && filtros.atajo_fecha) || '',
+    errores: [],
+    maxAnios: 5
+  };
+  const etiquetaRango = typeof etiquetaFiltroFecha !== 'undefined' ? etiquetaFiltroFecha : 'Rango de Fechas';
+  const ayudaRango = typeof ayudaFiltroFecha !== 'undefined' ? ayudaFiltroFecha : '';
+%>
+
+<div class="filtro-fechas-box" style="width:100%; background:var(--bg-muted); padding:12px 14px; border-radius:var(--radius-sm); border:1px solid var(--border-color); margin-bottom:4px;">
+  <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:8px;">
+    <div>
+      <strong style="font-size:0.86rem; color:var(--text-primary);">📅 <%= etiquetaRango %></strong>
+      <% if (ayudaRango) { %>
+        <span style="font-size:0.79rem; color:var(--text-secondary); margin-left:6px;"><%= ayudaRango %></span>
+      <% } %>
+    </div>
+    <div class="atajos-fechas" role="group" aria-label="Atajos rápidos de fecha" style="display:flex; gap:5px; flex-wrap:wrap;">
+      <input type="hidden" name="atajo_fecha" id="atajo_fecha" value="<%= ff.atajo || '' %>">
+      <button type="button" class="btn-sm btn-atajo-fecha <%= ff.atajo === 'hoy' ? 'activo' : '' %>" data-atajo="hoy" style="padding:4px 9px; font-size:0.76rem;">Hoy</button>
+      <button type="button" class="btn-sm btn-atajo-fecha <%= ff.atajo === '7dias' ? 'activo' : '' %>" data-atajo="7dias" style="padding:4px 9px; font-size:0.76rem;">Últimos 7 días</button>
+      <button type="button" class="btn-sm btn-atajo-fecha <%= ff.atajo === 'este_mes' ? 'activo' : '' %>" data-atajo="este_mes" style="padding:4px 9px; font-size:0.76rem;">Este mes</button>
+      <button type="button" class="btn-sm btn-atajo-fecha <%= ff.atajo === 'mes_anterior' ? 'activo' : '' %>" data-atajo="mes_anterior" style="padding:4px 9px; font-size:0.76rem;">Mes anterior</button>
+      <button type="button" class="btn-sm btn-atajo-fecha <%= ff.atajo === 'este_anio' ? 'activo' : '' %>" data-atajo="este_anio" style="padding:4px 9px; font-size:0.76rem;">Este año</button>
+      <button type="button" class="btn-sm btn-atajo-fecha <%= ff.atajo === 'todo' ? 'activo' : '' %>" data-atajo="todo" style="padding:4px 9px; font-size:0.76rem;">Todo</button>
+    </div>
+  </div>
+
+  <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">
+    <div class="form-group" style="margin:0; flex:1; min-width:150px;">
+      <label for="input-fecha-desde" style="font-size:0.8rem; margin-bottom:3px;">Desde</label>
+      <input type="date" name="desde" id="input-fecha-desde" value="<%= ff.desde %>"
+             style="<%= (ff.errores && ff.errores.length > 0) ? 'border-color:#dc2626;' : '' %>">
+    </div>
+    <div class="form-group" style="margin:0; flex:1; min-width:150px;">
+      <label for="input-fecha-hasta" style="font-size:0.8rem; margin-bottom:3px;">Hasta (inclusivo 23:59)</label>
+      <input type="date" name="hasta" id="input-fecha-hasta" value="<%= ff.hasta %>"
+             style="<%= (ff.errores && ff.errores.length > 0) ? 'border-color:#dc2626;' : '' %>">
+    </div>
+    <div>
+      <button type="button" id="btn-limpiar-fechas" class="btn-sm" style="padding:9px 12px;" title="Limpiar solo las fechas">Limpiar fechas</button>
+    </div>
+  </div>
+
+  <% if (ff.errores && ff.errores.length > 0) { %>
+    <div class="alert alert-danger" role="alert" style="margin:8px 0 0 0; padding:8px 12px; font-size:0.83rem;">
+      <span>⚠️ <strong>Error en el rango de fechas:</strong> <%= ff.errores.join(' ') %></span>
+    </div>
+  <% } %>
+</div>
+
+<script>
+  (function() {
+    const inputDesde = document.getElementById('input-fecha-desde');
+    const inputHasta = document.getElementById('input-fecha-hasta');
+    const inputAtajo = document.getElementById('atajo_fecha');
+    const btnLimpiar = document.getElementById('btn-limpiar-fechas');
+    const botonesAtajo = document.querySelectorAll('.btn-atajo-fecha');
+
+    function fmtISO(d) {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return y + '-' + m + '-' + day;
+    }
+
+    botonesAtajo.forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        const tipo = this.getAttribute('data-atajo');
+        const hoy = new Date();
+        let dDesde = '';
+        let dHasta = fmtISO(hoy);
+
+        if (tipo === 'hoy') {
+          dDesde = dHasta;
+        } else if (tipo === '7dias') {
+          const hace7 = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() - 6);
+          dDesde = fmtISO(hace7);
+        } else if (tipo === 'este_mes') {
+          const iniMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+          dDesde = fmtISO(iniMes);
+        } else if (tipo === 'mes_anterior') {
+          const iniMesAnt = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1);
+          const finMesAnt = new Date(hoy.getFullYear(), hoy.getMonth(), 0);
+          dDesde = fmtISO(iniMesAnt);
+          dHasta = fmtISO(finMesAnt);
+        } else if (tipo === 'este_anio') {
+          const iniAnio = new Date(hoy.getFullYear(), 0, 1);
+          dDesde = fmtISO(iniAnio);
+        } else if (tipo === 'todo') {
+          dDesde = '';
+          dHasta = '';
+        }
+
+        if (inputDesde) inputDesde.value = dDesde;
+        if (inputHasta) inputHasta.value = dHasta;
+        if (inputAtajo) inputAtajo.value = tipo;
+
+        botonesAtajo.forEach(b => b.classList.remove('activo'));
+        this.classList.add('activo');
+
+        const form = this.closest('form');
+        if (form) form.submit();
+      });
+    });
+
+    if (btnLimpiar) {
+      btnLimpiar.addEventListener('click', function() {
+        if (inputDesde) inputDesde.value = '';
+        if (inputHasta) inputHasta.value = '';
+        if (inputAtajo) inputAtajo.value = '';
+        botonesAtajo.forEach(b => b.classList.remove('activo'));
+      });
+    }
+  })();
+</script>

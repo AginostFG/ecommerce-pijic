@@ -27,7 +27,7 @@
       <input type="text" id="motivo" name="motivo" required placeholder="Ej: Bonificación por campaña o corrección de saldo">
     </div>
     <button type="submit" class="btn-accent" style="padding:11px 20px;">Aplicar Ajuste</button>
-    <a href="/admin/consultas" class="btn-sm" style="padding:11px 16px;">← Volver a Consultas</a>
+    <a href="/admin/reportes/clientes-fidelizacion" class="btn-sm" style="padding:11px 16px;">← Volver a Reporte de Puntos</a>
   </form>
 </div>
 
@@ -58,7 +58,15 @@
               <%= m.puntos > 0 ? '+' + m.puntos.toLocaleString('es-CO') : m.puntos.toLocaleString('es-CO') %> pts
             </td>
             <td><strong><%= m.saldo_resultante.toLocaleString('es-CO') %> pts</strong></td>
-            <td><%= m.id_pedido ? '#' + m.id_pedido : '—' %></td>
+            <td>
+              <% if (m.id_pedido) { %>
+                <a href="/admin/pedidos/<%= m.id_pedido %>" style="font-weight:700; color:var(--accent); text-decoration:none;">
+                  #<%= m.id_pedido %> →
+                </a>
+              <% } else { %>
+                —
+              <% } %>
+            </td>
             <td><%= m.descripcion %></td>
           </tr>
         <% }) %>

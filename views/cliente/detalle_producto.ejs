@@ -1,38 +1,391 @@
 <%- include('../partials/header') %>
 
-<div class="detalle-container">
+<div class="detalle-container" style="max-width:920px; margin:0 auto;">
   <div class="detalle-card">
-    <span class="badge-marca"><%= producto.nombre_marca %></span>
-    <h2><%= producto.nombre_producto %></h2>
-    <p class="categoria-temp"><strong>Categoría:</strong> <%= producto.nombre_categoria %> | <strong>Temporada:</strong> <%= producto.nombre_temporada %></p>
-    <p class="descripcion-larga"><%= producto.descripcion %></p>
-    <p class="precio-grande">$ <%= Number(producto.precio).toLocaleString('es-CO') %> COP</p>
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:28px; align-items:flex-start;">
+      <!-- Miniatura ilustrativa con borde reactivo al color elegido -->
+      <div>
+        <div id="miniatura-producto" class="producto-img-placeholder" style="height:290px; border-width:4px; border-style:solid; border-color:var(--accent); transition:border-color 0.25s ease;">
+          <span class="placeholder-cat" style="font-size:1.35rem;"><%= producto.nombre_categoria %></span>
+          <span class="placeholder-brand" style="font-size:0.9rem;"><%= producto.nombre_marca %> · <%= producto.nombre_temporada %></span>
+          <span id="badge-miniatura-color" style="margin-top:14px; font-size:0.8rem; background:rgba(255,255,255,0.12); padding:4px 12px; border-radius:999px;">
+            Selecciona color y talla
+          </span>
+        </div>
+        <p class="descripcion-larga" style="color:var(--text-secondary); font-size:0.94rem; margin-top:14px;">
+          <%= producto.descripcion || 'Prenda masculina confeccionada con altos estándares de calidad.' %>
+        </p>
+      </div>
 
-    <% if (producto.inventario.length === 0) { %>
-      <div class="alert alert-danger">Producto agotado temporalmente en todas las tallas y colores.</div>
-    <% } else { %>
-      <form action="/carrito/agregar" method="POST">
-        <input type="hidden" name="id_producto" value="<%= producto.id_producto %>">
-        <div class="form-group">
-          <label for="id_inventario">Selecciona Talla y Color disponibles:</label>
-          <select name="id_inventario" id="id_inventario" required>
-            <% producto.inventario.forEach(inv => { %>
-              <option value="<%= inv.id_inventario %>">
-                Talla: <%= inv.nombre_talla %> — Color: <%= inv.nombre_color %> (Disponibles: <%= inv.cantidad_stock %>)
-              </option>
-            <% }) %>
-          </select>
+      <!-- Panel de selección estilo e-commerce moderno (M7) -->
+      <div>
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:8px;">
+          <span class="badge-marca"><%= producto.nombre_marca %></span>
+          <span class="badge-temporada"><%= producto.nombre_temporada %></span>
         </div>
-        <div class="form-group">
-          <label for="cantidad">Cantidad:</label>
-          <input type="number" name="cantidad" id="cantidad" value="1" min="1" max="50" required>
+        <h2 style="margin:0 0 6px 0;"><%= producto.nombre_producto %></h2>
+        <p class="precio-grande" style="margin:8px 0 18px 0;"><%= formatoCOP(producto.precio) %></p>
+
+        <% if (!producto.variantes || producto.variantes.length === 0 || producto.stock_total <= 0) { %>
+          <div class="alert alert-danger" role="alert">
+            Producto agotado temporalmente en todas las tallas y colores.
+          </div>
+        <% } else { %>
+          <form action="/carrito/agregar" method="POST" id="form-agregar-carrito" novalidate>
+            <input type="hidden" name="id_producto" value="<%= producto.id_producto %>">
+            <input type="hidden" name="id_inventario" id="input-id-inventario" value="">
+
+            <!-- 1. Selector de COLOR (Swatches) -->
+            <div class="selector-bloque" style="margin-bottom:20px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <span style="font-weight:600; font-size:0.9rem; color:var(--text-secondary);">
+                  Color: <strong id="lbl-color-elegido" style="color:var(--text-primary);">Sin seleccionar</strong>
+                </span>
+              </div>
+              <div class="swatches-grupo" role="radiogroup" aria-label="Seleccionar color">
+                <% producto.colores.forEach(col => { %>
+                  <% const agotadoGlobal = col.stock_total_color <= 0; %>
+                  <button type="button"
+                          class="swatch-btn <%= agotadoGlobal ? 'agotado' : '' %>"
+                          data-id-color="<%= col.id_color %>"
+                          data-nombre-color="<%= col.nombre_color %>"
+                          data-hex="<%= col.codigo_hex || '#71717A' %>"
+                          aria-label="Color <%= col.nombre_color %><%= agotadoGlobal ? ' (Agotado)' : '' %>"
+                          aria-pressed="false"
+                          <%= agotadoGlobal ? 'disabled' : '' %>>
+                    <span class="swatch-circulo" style="background-color:<%= col.codigo_hex || '#71717A' %>;"></span>
+                    <span class="swatch-nombre"><%= col.nombre_color %></span>
+                  </button>
+                <% }) %>
+              </div>
+            </div>
+
+            <!-- 2. Selector de TALLA (Chips) -->
+            <div class="selector-bloque" style="margin-bottom:18px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <span style="font-weight:600; font-size:0.9rem; color:var(--text-secondary);">
+                  Talla: <strong id="lbl-talla-elegida" style="color:var(--text-primary);">Sin seleccionar</strong>
+                </span>
+              </div>
+              <div class="chips-talla-grupo" role="radiogroup" aria-label="Seleccionar talla">
+                <% producto.tallas.forEach(tal => { %>
+                  <% const agotadaGlobal = tal.stock_total_talla <= 0; %>
+                  <button type="button"
+                          class="chip-talla-btn <%= agotadaGlobal ? 'agotado' : '' %>"
+                          data-id-talla="<%= tal.id_talla %>"
+                          data-nombre-talla="<%= tal.nombre_talla %>"
+                          aria-label="Talla <%= tal.nombre_talla %><%= agotadaGlobal ? ' (Agotada)' : '' %>"
+                          aria-pressed="false"
+                          <%= agotadaGlobal ? 'disabled' : '' %>>
+                    <span><%= tal.nombre_talla %></span>
+                  </button>
+                <% }) %>
+              </div>
+            </div>
+
+            <!-- Aviso discreto de combinación incompatible limpiada -->
+            <div id="aviso-combinacion" role="status" aria-live="polite"
+                 style="display:none; font-size:0.83rem; background:var(--warning-bg); color:var(--warning-text); padding:8px 12px; border-radius:var(--radius-sm); margin-bottom:14px; border:1px solid #fde68a;">
+            </div>
+
+            <!-- Estado de stock de la combinación elegida -->
+            <div id="panel-estado-variante" aria-live="polite"
+                 style="background:var(--bg-muted); padding:10px 14px; border-radius:var(--radius-sm); margin-bottom:16px; font-size:0.88rem; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+              <span id="lbl-disponibilidad-variante" style="color:var(--text-secondary);">
+                Elige un color y una talla para ver las unidades disponibles.
+              </span>
+              <span id="badge-umbral-variante" class="badge" style="display:none;"></span>
+            </div>
+
+            <!-- 3. Selector de CANTIDAD con botones - / + limitado al stock -->
+            <div class="selector-bloque" style="margin-bottom:20px;">
+              <label for="input-cantidad" style="display:block; font-weight:600; font-size:0.88rem; color:var(--text-secondary); margin-bottom:6px;">
+                Cantidad:
+              </label>
+              <div class="control-cantidad">
+                <button type="button" id="btn-cant-menos" class="btn-cant" aria-label="Disminuir cantidad" disabled>−</button>
+                <input type="number" name="cantidad" id="input-cantidad" value="1" min="1" max="1" required readonly aria-label="Cantidad seleccionada">
+                <button type="button" id="btn-cant-mas" class="btn-cant" aria-label="Aumentar cantidad" disabled>+</button>
+              </div>
+            </div>
+
+            <button type="submit" id="btn-submit-carrito" class="btn-primary" disabled style="opacity:0.65; cursor:not-allowed;">
+              Selecciona color y talla
+            </button>
+          </form>
+        <% } %>
+
+        <div style="margin-top:16px;">
+          <a href="/catalogo" class="btn-secondary-link">← Volver al catálogo</a>
         </div>
-        <button type="submit" class="btn-primary">Agregar al Carrito</button>
-      </form>
-    <% } %>
-    <br>
-    <a href="/catalogo" class="btn-secondary-link">← Volver al catálogo</a>
+      </div>
+    </div>
   </div>
 </div>
+
+<% if (producto.variantes && producto.variantes.length > 0 && producto.stock_total > 0) { %>
+  <script id="datos-variantes-json" type="application/json">
+    <%- JSON.stringify({
+      umbralBajo: producto.umbral_stock_bajo || 5,
+      variantes: producto.variantes.map(v => ({
+        id_inventario: Number(v.id_inventario),
+        id_talla: Number(v.id_talla),
+        nombre_talla: v.nombre_talla,
+        id_color: Number(v.id_color),
+        nombre_color: v.nombre_color,
+        codigo_hex: v.codigo_hex || '#71717A',
+        stock: Number(v.cantidad_stock) || 0
+      }))
+    }) %>
+  </script>
+
+  <script>
+    (function() {
+      const rawJson = document.getElementById('datos-variantes-json');
+      if (!rawJson) return;
+      const payload = JSON.parse(rawJson.textContent);
+      const variantes = payload.variantes || [];
+      const umbralBajo = payload.umbralBajo || 5;
+
+      const btnsColor = Array.from(document.querySelectorAll('.swatch-btn'));
+      const btnsTalla = Array.from(document.querySelectorAll('.chip-talla-btn'));
+      const inputInv = document.getElementById('input-id-inventario');
+      const lblColor = document.getElementById('lbl-color-elegido');
+      const lblTalla = document.getElementById('lbl-talla-elegida');
+      const lblDisp = document.getElementById('lbl-disponibilidad-variante');
+      const badgeUmbral = document.getElementById('badge-umbral-variante');
+      const avisoComb = document.getElementById('aviso-combinacion');
+      const inputCant = document.getElementById('input-cantidad');
+      const btnMenos = document.getElementById('btn-cant-menos');
+      const btnMas = document.getElementById('btn-cant-mas');
+      const btnSubmit = document.getElementById('btn-submit-carrito');
+      const miniatura = document.getElementById('miniatura-producto');
+      const badgeMiniatura = document.getElementById('badge-miniatura-color');
+
+      let colorSeleccionado = null;
+      let tallaSeleccionada = null;
+
+      function obtenerVariante(idColor, idTalla) {
+        return variantes.find(v => v.id_color === Number(idColor) && v.id_talla === Number(idTalla)) || null;
+      }
+
+      function stockColorConTalla(idColor, idTallaFiltro) {
+        return variantes
+          .filter(v => v.id_color === Number(idColor) && (!idTallaFiltro || v.id_talla === Number(idTallaFiltro)))
+          .reduce((acc, v) => acc + v.stock, 0);
+      }
+
+      function stockTallaConColor(idTalla, idColorFiltro) {
+        return variantes
+          .filter(v => v.id_talla === Number(idTalla) && (!idColorFiltro || v.id_color === Number(idColorFiltro)))
+          .reduce((acc, v) => acc + v.stock, 0);
+      }
+
+      function mostrarAviso(texto) {
+        if (!avisoComb) return;
+        if (!texto) {
+          avisoComb.style.display = 'none';
+          avisoComb.textContent = '';
+        } else {
+          avisoComb.textContent = texto;
+          avisoComb.style.display = 'block';
+        }
+      }
+
+      function actualizarUI() {
+        // 1. Actualizar estados de botones de Color según talla activa (disponibilidad cruzada)
+        btnsColor.forEach(btn => {
+          const idCol = Number(btn.getAttribute('data-id-color'));
+          const nombreCol = btn.getAttribute('data-nombre-color');
+          const stockGlobalCol = stockColorConTalla(idCol, null);
+          const stockCruzadoCol = stockColorConTalla(idCol, tallaSeleccionada);
+          const activo = colorSeleccionado === idCol;
+
+          btn.classList.toggle('seleccionado', activo);
+          btn.setAttribute('aria-pressed', activo ? 'true' : 'false');
+
+          const sinStock = stockGlobalCol <= 0 || (tallaSeleccionada && stockCruzadoCol <= 0);
+          btn.classList.toggle('agotado', sinStock);
+          // Permitimos hacer clic en un color que tiene stock en otra talla para cambiar de color e informar
+          btn.disabled = stockGlobalCol <= 0;
+          btn.setAttribute(
+            'aria-label',
+            'Color ' + nombreCol + (stockGlobalCol <= 0 ? ' (Agotado)' : (sinStock ? ' (Sin stock en la talla elegida)' : ''))
+          );
+        });
+
+        // 2. Actualizar estados de botones de Talla según color activo (disponibilidad cruzada)
+        btnsTalla.forEach(btn => {
+          const idTal = Number(btn.getAttribute('data-id-talla'));
+          const nombreTal = btn.getAttribute('data-nombre-talla');
+          const stockGlobalTal = stockTallaConColor(idTal, null);
+          const stockCruzadoTal = stockTallaConColor(idTal, colorSeleccionado);
+          const activo = tallaSeleccionada === idTal;
+
+          btn.classList.toggle('seleccionado', activo);
+          btn.setAttribute('aria-pressed', activo ? 'true' : 'false');
+
+          const sinStock = stockGlobalTal <= 0 || (colorSeleccionado && stockCruzadoTal <= 0);
+          btn.classList.toggle('agotado', sinStock);
+          btn.disabled = sinStock;
+          btn.setAttribute(
+            'aria-label',
+            'Talla ' + nombreTal + (sinStock ? ' (Agotada)' : (stockCruzadoTal <= umbralBajo ? ' (Pocas unidades)' : ''))
+          );
+        });
+
+        // 3. Etiquetas de selección y miniatura
+        const objColor = btnsColor.find(b => Number(b.getAttribute('data-id-color')) === colorSeleccionado);
+        const objTalla = btnsTalla.find(b => Number(b.getAttribute('data-id-talla')) === tallaSeleccionada);
+
+        lblColor.textContent = objColor ? objColor.getAttribute('data-nombre-color') : 'Sin seleccionar';
+        lblTalla.textContent = objTalla ? objTalla.getAttribute('data-nombre-talla') : 'Sin seleccionar';
+
+        if (miniatura && objColor) {
+          miniatura.style.borderColor = objColor.getAttribute('data-hex') || 'var(--accent)';
+        }
+        if (badgeMiniatura) {
+          if (objColor && objTalla) {
+            badgeMiniatura.textContent = 'Talla ' + objTalla.getAttribute('data-nombre-talla') + ' · ' + objColor.getAttribute('data-nombre-color');
+          } else if (objColor) {
+            badgeMiniatura.textContent = 'Color: ' + objColor.getAttribute('data-nombre-color');
+          } else if (objTalla) {
+            badgeMiniatura.textContent = 'Talla: ' + objTalla.getAttribute('data-nombre-talla');
+          } else {
+            badgeMiniatura.textContent = 'Selecciona color y talla';
+          }
+        }
+
+        // 4. Evaluar combinación final
+        const varianteActual = (colorSeleccionado && tallaSeleccionada)
+          ? obtenerVariante(colorSeleccionado, tallaSeleccionada)
+          : null;
+
+        if (varianteActual && varianteActual.stock > 0) {
+          inputInv.value = varianteActual.id_inventario;
+          const maxStock = varianteActual.stock;
+          let cantActual = parseInt(inputCant.value, 10) || 1;
+          if (cantActual > maxStock) cantActual = maxStock;
+          if (cantActual < 1) cantActual = 1;
+          inputCant.value = cantActual;
+          inputCant.max = maxStock;
+
+          btnMenos.disabled = cantActual <= 1;
+          btnMas.disabled = cantActual >= maxStock;
+
+          if (maxStock <= umbralBajo) {
+            lblDisp.innerHTML = 'Stock de la variante: <strong style="color:var(--warning-text);">¡Solo quedan ' + maxStock + ' unidades!</strong>';
+            badgeUmbral.style.display = 'inline-block';
+            badgeUmbral.className = 'badge badge-warning';
+            badgeUmbral.textContent = 'Pocas unidades';
+          } else {
+            lblDisp.innerHTML = 'Stock disponible: <strong style="color:var(--success-text);">' + maxStock + ' disponibles</strong>';
+            badgeUmbral.style.display = 'inline-block';
+            badgeUmbral.className = 'badge badge-success';
+            badgeUmbral.textContent = 'Disponible';
+          }
+
+          btnSubmit.disabled = false;
+          btnSubmit.style.opacity = '1';
+          btnSubmit.style.cursor = 'pointer';
+          btnSubmit.textContent = 'Agregar al Carrito';
+        } else {
+          inputInv.value = '';
+          inputCant.value = 1;
+          inputCant.max = 1;
+          btnMenos.disabled = true;
+          btnMas.disabled = true;
+          badgeUmbral.style.display = 'none';
+          lblDisp.textContent = 'Elige un color y una talla disponibles para continuar.';
+
+          btnSubmit.disabled = true;
+          btnSubmit.style.opacity = '0.65';
+          btnSubmit.style.cursor = 'not-allowed';
+
+          if (!colorSeleccionado && !tallaSeleccionada) {
+            btnSubmit.textContent = 'Selecciona un color y una talla';
+          } else if (!colorSeleccionado) {
+            btnSubmit.textContent = 'Selecciona un color';
+          } else {
+            btnSubmit.textContent = 'Selecciona una talla';
+          }
+        }
+      }
+
+      // Eventos de selección de Color
+      btnsColor.forEach(btn => {
+        btn.addEventListener('click', function() {
+          const idCol = Number(this.getAttribute('data-id-color'));
+          const nombreCol = this.getAttribute('data-nombre-color');
+          mostrarAviso('');
+
+          if (colorSeleccionado === idCol) {
+            colorSeleccionado = null;
+          } else {
+            colorSeleccionado = idCol;
+            // Verificar si la talla que estaba elegida tiene stock en este nuevo color
+            if (tallaSeleccionada && stockTallaConColor(tallaSeleccionada, colorSeleccionado) <= 0) {
+              const btnTalAnt = btnsTalla.find(b => Number(b.getAttribute('data-id-talla')) === tallaSeleccionada);
+              const nomTalAnt = btnTalAnt ? btnTalAnt.getAttribute('data-nombre-talla') : '';
+              tallaSeleccionada = null;
+              mostrarAviso('La talla ' + nomTalAnt + ' está agotada en color ' + nombreCol + '. Por favor elige otra talla disponible.');
+            }
+          }
+          actualizarUI();
+        });
+      });
+
+      // Eventos de selección de Talla
+      btnsTalla.forEach(btn => {
+        btn.addEventListener('click', function() {
+          if (this.disabled) return;
+          const idTal = Number(this.getAttribute('data-id-talla'));
+          mostrarAviso('');
+
+          if (tallaSeleccionada === idTal) {
+            tallaSeleccionada = null;
+          } else {
+            tallaSeleccionada = idTal;
+          }
+          actualizarUI();
+        });
+      });
+
+      // Botones de cantidad - / +
+      if (btnMenos) {
+        btnMenos.addEventListener('click', function() {
+          const actual = parseInt(inputCant.value, 10) || 1;
+          if (actual > 1) {
+            inputCant.value = actual - 1;
+            actualizarUI();
+          }
+        });
+      }
+      if (btnMas) {
+        btnMas.addEventListener('click', function() {
+          const actual = parseInt(inputCant.value, 10) || 1;
+          const max = parseInt(inputCant.max, 10) || 1;
+          if (actual < max) {
+            inputCant.value = actual + 1;
+            actualizarUI();
+          }
+        });
+      }
+
+      // Preselección inteligente si solo hay 1 color con stock o 1 talla con stock
+      const coloresConStock = btnsColor.filter(b => stockColorConTalla(Number(b.getAttribute('data-id-color')), null) > 0);
+      if (coloresConStock.length === 1) {
+        colorSeleccionado = Number(coloresConStock[0].getAttribute('data-id-color'));
+      }
+
+      const tallasDisponiblesInicial = btnsTalla.filter(b => stockTallaConColor(Number(b.getAttribute('data-id-talla')), colorSeleccionado) > 0);
+      if (tallasDisponiblesInicial.length === 1) {
+        tallaSeleccionada = Number(tallasDisponiblesInicial[0].getAttribute('data-id-talla'));
+      }
+
+      actualizarUI();
+    })();
+  </script>
+<% } %>
 
 <%- include('../partials/footer') %>

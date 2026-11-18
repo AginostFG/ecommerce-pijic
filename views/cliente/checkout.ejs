@@ -10,6 +10,26 @@
         <input type="text" id="direccion_entrega" name="direccion_entrega" required value="<%= direccionCliente %>" placeholder="Ej: Carrera 103 # 98-15 Barrio Vélez, Apartadó">
       </div>
 
+      <!-- Detalle visual de las prendas y sus variantes (M7) -->
+      <div style="margin: 18px 0; border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 14px; background: #fff;">
+        <h4 style="margin:0 0 10px 0; font-size:0.95rem;">Prendas en tu Orden</h4>
+        <% carrito.forEach(item => { %>
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; padding:8px 0; border-bottom:1px solid #f4f4f5; font-size:0.9rem;">
+            <div>
+              <strong><%= item.nombre_producto %></strong>
+              <span class="variante-pill" style="margin-left:8px;">
+                <span>Talla <%= item.nombre_talla %></span>
+                <span>·</span>
+                <span class="mini-swatch" style="background-color:<%= item.codigo_hex || '#71717A' %>;"></span>
+                <span><%= item.nombre_color %></span>
+              </span>
+              <span style="color:var(--text-muted); margin-left:6px;">× <%= item.cantidad %></span>
+            </div>
+            <strong><%= formatoCOP(item.precio * item.cantidad) %></strong>
+          </div>
+        <% }) %>
+      </div>
+
       <!-- Sección de Canje de Puntos de Fidelización (Ajuste 4.3) -->
       <div style="background: var(--accent-soft); border: 1px solid #e5d5b5; padding: 18px; border-radius: var(--radius-md); margin: 22px 0;">
         <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">

@@ -581,3 +581,192 @@ table tbody tr:hover {
     width: 100%;
   }
 }
+
+
+/* ==========================================================================
+   M7: SELECTOR DE COLOR Y TALLA ESTILO E-COMMERCE MODERNO + UTILIDADES M1-M6
+   ========================================================================== */
+.mini-swatch {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1px solid rgba(24, 24, 27, 0.3);
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+.mini-swatch.agotado {
+  opacity: 0.35;
+  position: relative;
+}
+
+.variante-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-muted);
+  border: 1px solid var(--border-color);
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.84rem;
+}
+
+.swatches-grupo,
+.chips-talla-grupo {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.swatch-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 6px 14px 6px 8px;
+  border: 2px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 0.88rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+
+.swatch-btn .swatch-circulo {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid rgba(24, 24, 27, 0.25);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.12);
+  flex-shrink: 0;
+}
+
+.swatch-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.swatch-btn.seleccionado {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: 0 0 0 2px rgba(154, 107, 50, 0.22);
+  font-weight: 700;
+}
+
+.swatch-btn.agotado {
+  opacity: 0.45;
+  text-decoration: line-through;
+  background: #f4f4f5;
+}
+
+.swatch-btn:disabled {
+  cursor: not-allowed;
+}
+
+.chip-talla-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 48px;
+  min-height: 42px;
+  padding: 6px 14px;
+  border: 2px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+
+.chip-talla-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.chip-talla-btn.seleccionado {
+  border-color: var(--bg-dark);
+  background: var(--bg-dark);
+  color: #fff;
+  box-shadow: 0 2px 6px rgba(20, 22, 25, 0.18);
+}
+
+.chip-talla-btn.agotado {
+  opacity: 0.42;
+  text-decoration: line-through;
+  background: #f4f4f5;
+  cursor: not-allowed;
+}
+
+.swatch-btn:focus-visible,
+.chip-talla-btn:focus-visible,
+.btn-cant:focus-visible,
+.btn-atajo-fecha:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.control-cantidad {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #d4d4d8;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: #fff;
+}
+
+.control-cantidad .btn-cant {
+  width: 42px;
+  height: 42px;
+  border: none;
+  background: var(--bg-muted);
+  color: var(--text-primary);
+  font-size: 1.15rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.control-cantidad .btn-cant:hover:not(:disabled) {
+  background: #dedad0;
+}
+
+.control-cantidad .btn-cant:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.control-cantidad input[type="number"] {
+  width: 62px;
+  height: 42px;
+  border: none;
+  text-align: center;
+  font-size: 1rem;
+  font-weight: 700;
+  padding: 0;
+  -moz-appearance: textfield;
+}
+
+.btn-atajo-fecha.activo {
+  background: var(--bg-dark);
+  color: #fff;
+  border-color: var(--bg-dark);
+}
+
+.fila-expandible-detalle {
+  background: #fcfbf9 !important;
+}
+
+@media (max-width: 480px) {
+  .swatch-btn,
+  .chip-talla-btn {
+    min-height: 42px;
+    padding: 6px 11px;
+  }
+}

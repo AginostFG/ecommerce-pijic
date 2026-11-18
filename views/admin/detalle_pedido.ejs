@@ -1,0 +1,126 @@
+<%- include('../partials/header') %>
+<%- include('../partials/admin_nav') %>
+
+<div style="max-width: 960px; margin: 0 auto;">
+  <nav aria-label="Breadcrumb" style="font-size:0.86rem; color:var(--text-muted); margin-bottom:12px;">
+    <a href="/admin/reportes" style="color:var(--accent); text-decoration:none; font-weight:600;">Centro de Reportes</a>
+    <span> &rsaquo; </span>
+    <strong style="color:var(--text-primary);">Detalle del Pedido #<%= pedido.id_pedido %></strong>
+  </nav>
+
+  <div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:14px; border-bottom:1px solid var(--border-color); padding-bottom:16px; margin-bottom:18px;">
+      <div>
+        <h2 style="margin:0 0 6px 0;">Pedido #<%= pedido.id_pedido %></h2>
+        <span style="color:var(--text-secondary); font-size:0.9rem;">
+          Registrado el <strong><%= new Date(pedido.fecha_pedido).toLocaleString('es-CO') %></strong>
+        </span>
+      </div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+        <span class="badge-estado <%= String(pedido.estado_pedido || '').toLowerCase() %>">
+          Pago: <%= pedido.estado_pedido %>
+        </span>
+        <span class="badge-estado <%= String(pedido.estado_entrega || 'En preparación').toLowerCase().replace(/\s+/g, '-') %>">
+          Entrega: <%= pedido.estado_entrega || 'En preparación' %>
+        </span>
+      </div>
+    </div>
+
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:18px; margin-bottom:24px;">
+      <div style="background:var(--bg-muted); padding:15px; border-radius:var(--radius-sm);">
+        <h4 style="margin:0 0 8px 0; font-size:0.95rem;">👤 Datos del Cliente</h4>
+        <p style="margin:4px 0; font-size:0.9rem;"><strong>Nombre:</strong> <%= pedido.cliente_nombre %></p>
+        <p style="margin:4px 0; font-size:0.9rem;">
+          <strong>Documento:</strong>
+          <%= pedido.cliente_documento ? ((pedido.cliente_tipo_documento || 'CC') + ' ' + pedido.cliente_documento) : 'No registrado' %>
+        </p>
+        <p style="margin:4px 0; font-size:0.9rem;"><strong>Correo:</strong> <%= pedido.cliente_correo %></p>
+        <div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">
+          <a href="/admin/reportes/historial-cliente?id_cliente=<%= pedido.id_cliente %>" class="btn-sm" style="font-size:0.78rem;">Ver Historial del Cliente</a>
+          <a href="/admin/puntos/<%= pedido.id_cliente %>" class="btn-sm" style="font-size:0.78rem;">Auditoría Puntos</a>
+        </div>
+      </div>
+
+      <div style="background:var(--bg-muted); padding:15px; border-radius:var(--radius-sm);">
+        <h4 style="margin:0 0 8px 0; font-size:0.95rem;">🚚 Pago y Logística de Entrega</h4>
+        <p style="margin:4px 0; font-size:0.9rem;"><strong>Dirección de Entrega:</strong> <%= pedido.direccion_entrega %></p>
+        <p style="margin:4px 0; font-size:0.9rem;"><strong>Método de Pago:</strong> <%= pedido.nombre_metodo %></p>
+        <p style="margin:4px 0; font-size:0.9rem;">
+          <strong>Modalidad Logística:</strong> <%= pedido.tipo_entrega || 'Propia' %>
+          (<%= pedido.zona_cobertura ? 'Urabá - Cobertura Propia' : 'Nacional - Externa' %>)
+        </p>
+        <p style="margin:4px 0; font-size:0.9rem;">
+          <strong>Responsable:</strong> <%= pedido.transportadora || 'Logística Propia Urabá' %>
+        </p>
+      </div>
+    </div>
+
+    <h3 style="margin-bottom:12px;">Líneas del Pedido (<%= pedido.detalles.reduce((a, b) => a + Number(b.cantidad), 0) %> unidades)</h3>
+    <div class="table-responsive">
+      <table>
+        <thead>
+          <tr>
+            <th>ID Prod.</th>
+            <th>Prenda</th>
+            <th>Talla</th>
+            <th>Color</th>
+            <th>Cantidad</th>
+            <th>Precio Unitario Histórico</th>
+            <th>Subtotal Línea</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% pedido.detalles.forEach(det => { %>
+            <tr>
+              <td>#<%= det.id_producto %></td>
+              <td>
+                <strong><%= det.nombre_producto %></strong>
+                <% if (!det.producto_estado) { %>
+                  <span class="badge badge-danger" style="margin-left:6px;">Dado de baja</span>
+                <% } %>
+              </td>
+              <td><span class="badge-marca"><%= det.nombre_talla %></span></td>
+              <td>
+                <span style="display:inline-flex; align-items:center; gap:6px;">
+                  <span style="display:inline-block; width:14px; height:14px; border-radius:50%; background:<%= det.codigo_hex || '#71717A' %>; border:1px solid #a1a1aa;"></span>
+                  <%= det.nombre_color %>
+                </span>
+              </td>
+              <td><strong><%= det.cantidad %></strong></td>
+              <td><%= formatoCOP(det.precio_unitario) %></td>
+              <td><strong><%= formatoCOP(det.cantidad * det.precio_unitario) %></strong></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+
+    <div style="margin-top:20px; background:var(--bg-muted); padding:18px; border-radius:var(--radius-md); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:15px;">
+      <div>
+        <small style="color:var(--text-secondary); display:block;">
+          Puntos canjeados en este pedido: <strong><%= pedido.puntos_canjeados %> pts</strong>
+        </small>
+        <small style="color:var(--text-secondary); display:block;">
+          Puntos acreditados al cliente: <strong style="color:var(--accent);">+<%= pedido.puntos_ganados %> pts</strong>
+        </small>
+      </div>
+      <div style="text-align:right;">
+        <p style="margin:3px 0;">Subtotal Bruto: <strong><%= formatoCOP(pedido.subtotal) %></strong></p>
+        <p style="margin:3px 0; color:var(--success-text);">
+          Descuento por Puntos: <strong>- <%= formatoCOP(pedido.descuento_puntos) %></strong>
+        </p>
+        <h3 style="margin:8px 0 0 0; color:var(--accent);">Total Neto Pedido: <%= formatoCOP(pedido.total) %></h3>
+      </div>
+    </div>
+
+    <div style="margin-top:20px; display:flex; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+      <a href="javascript:history.back()" class="btn-sm">← Volver</a>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <a href="/admin/entregas" class="btn-sm">Ir a Gestión de Entregas</a>
+        <a href="/admin/reportes/ventas-periodo" class="btn-sm">Ir a Ventas por Período</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<%- include('../partials/footer') %>

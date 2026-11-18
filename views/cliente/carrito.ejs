@@ -4,7 +4,7 @@
   <h2>Tu Carrito de Compras</h2>
 
   <% if (typeof hayDadosDeBaja !== 'undefined' && hayDadosDeBaja) { %>
-    <div class="alert alert-danger">
+    <div class="alert alert-danger" role="alert">
       <span><strong>Atención:</strong> Una o más prendas de tu carrito fueron dadas de baja del catálogo. Por favor elimínalas del carrito para poder proceder al checkout.</span>
     </div>
   <% } %>
@@ -20,7 +20,7 @@
         <thead>
           <tr>
             <th>Producto</th>
-            <th>Talla / Color</th>
+            <th>Variante (Talla · Color)</th>
             <th>Precio Unitario</th>
             <th>Cantidad</th>
             <th>Subtotal</th>
@@ -31,12 +31,21 @@
           <% carrito.forEach(item => { %>
             <tr style="<%= item.dado_de_baja ? 'background:#fef2f2; opacity:0.85;' : '' %>">
               <td>
-                <strong><%= item.nombre_producto %></strong>
+                <a href="/catalogo/producto/<%= item.id_producto %>" style="color:var(--text-primary); text-decoration:none;">
+                  <strong><%= item.nombre_producto %></strong>
+                </a>
                 <% if (item.dado_de_baja) { %>
                   <br><span class="badge badge-danger">No disponible (Dado de baja)</span>
                 <% } %>
               </td>
-              <td>Talla: <%= item.nombre_talla %> / Color: <%= item.nombre_color %></td>
+              <td>
+                <span class="variante-pill">
+                  <strong>Talla <%= item.nombre_talla %></strong>
+                  <span>·</span>
+                  <span class="mini-swatch" style="background-color:<%= item.codigo_hex || '#71717A' %>;"></span>
+                  <span><%= item.nombre_color %></span>
+                </span>
+              </td>
               <td><%= formatoCOP(item.precio) %></td>
               <td>
                 <% if (item.dado_de_baja) { %>
@@ -44,12 +53,12 @@
                 <% } else { %>
                   <form action="/carrito/modificar" method="POST" style="display:inline;">
                     <input type="hidden" name="id_inventario" value="<%= item.id_inventario %>">
-                    <button type="submit" name="accion" value="disminuir" class="btn-sm">-</button>
+                    <button type="submit" name="accion" value="disminuir" class="btn-sm" aria-label="Disminuir cantidad">−</button>
                   </form>
                   <span style="margin: 0 10px; font-weight: bold;"><%= item.cantidad %></span>
                   <form action="/carrito/modificar" method="POST" style="display:inline;">
                     <input type="hidden" name="id_inventario" value="<%= item.id_inventario %>">
-                    <button type="submit" name="accion" value="aumentar" class="btn-sm">+</button>
+                    <button type="submit" name="accion" value="aumentar" class="btn-sm" aria-label="Aumentar cantidad">+</button>
                   </form>
                 <% } %>
               </td>

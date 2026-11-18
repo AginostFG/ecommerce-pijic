@@ -1,6 +1,7 @@
 /**
  * Archivo: controllers/adminController.js
- * Propósito: Controladores del módulo Administrador para inventario (con baja lógica y eliminación), marcas, proveedores, transportadoras y pagos.
+ * Propósito: Controladores del módulo Administrador para inventario (con baja lógica, foto de pérdida y eliminación),
+ *            marcas, proveedores, transportadoras, pagos, detalle de pedido (M6) y autocompletado de clientes (M5).
  */
 const AdminModel = require('../models/adminModel');
 
@@ -29,7 +30,7 @@ class AdminController {
   }
 
   // ==========================================
-  // CU02.1 INVENTARIO ESTACIONAL + ACTUALIZACIÓN 2
+  // CU02.1 INVENTARIO ESTACIONAL + ACTUALIZACIÓN 2 + M1 + M7
   // ==========================================
   static async vistaInventario(req, res) {
     try {
@@ -111,13 +112,16 @@ class AdminController {
     }
   }
 
-  // Actualización 2: Dar de baja producto
+  // Actualización 2 + M1: Dar de baja producto guardando foto de pérdida
   static async darDeBajaProducto(req, res) {
     const urlRetorno = construirUrlRetornoInventario(req.body);
     try {
       const { id_producto, motivo_baja } = req.body;
-      const nombre = await AdminModel.darDeBajaProducto(id_producto, motivo_baja);
-      req.session.mensajeExito = `El producto "${nombre}" (#${id_producto}) fue dado de baja. Ya no aparece en el catálogo del cliente y su historial se conserva intacto.`;
+      const resultado = await AdminModel.darDeBajaProducto(id_producto, motivo_baja);
+      const perdidaFmt = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(
+        resultado.perdidaBaja || 0
+      );
+      req.session.mensajeExito = `El producto "${resultado.nombre}" (#${id_producto}) fue dado de baja. Se registró una foto de pérdida de ${perdidaFmt} (${resultado.unidadesEnBaja} unids. descartadas).`;
       res.redirect(urlRetorno);
     } catch (error) {
       req.session.mensajeError = error.message || 'No se pudo dar de baja el producto.';
@@ -125,13 +129,13 @@ class AdminController {
     }
   }
 
-  // Actualización 2: Reactivar producto
+  // Actualización 2 + M1: Reactivar producto limpiando campos de baja y pérdida
   static async reactivarProducto(req, res) {
     const urlRetorno = construirUrlRetornoInventario(req.body);
     try {
       const { id_producto } = req.body;
       const nombre = await AdminModel.reactivarProducto(id_producto);
-      req.session.mensajeExito = `El producto "${nombre}" (#${id_producto}) ha sido reactivado y vuelve a estar visible en la tienda.`;
+      req.session.mensajeExito = `El producto "${nombre}" (#${id_producto}) ha sido reactivado, su registro de pérdida fue limpiado y vuelve a estar visible en la tienda.`;
       res.redirect(urlRetorno);
     } catch (error) {
       req.session.mensajeError = error.message || 'No se pudo reactivar el producto.';
@@ -182,18 +186,70 @@ class AdminController {
 
   static async crearCatalogoAuxiliar(req, res) {
     try {
-      const { tipo, valor } = req.body;
+      const { tipo, valor, codigo_hex } = req.body;
       if (!tipo || !valor || !valor.trim()) {
         req.session.mensajeError = 'Debe indicar un nombre válido.';
         return res.redirect('/admin/inventario');
       }
-      await AdminModel.crearAtributoCatalogo(tipo, valor.trim());
+      await AdminModel.crearAtributoCatalogo(tipo, valor.trim(), codigo_hex);
       req.session.mensajeExito = `Nuevo registro de ${tipo} agregado.`;
       res.redirect('/admin/inventario');
     } catch (error) {
       console.error('Error al crear atributo:', error);
       req.session.mensajeError = 'No se pudo agregar el atributo.';
       res.redirect('/admin/inventario');
+    }
+  }
+
+  // M7: Actualizar muestra hexadecimal de color
+  static async actualizarColorHex(req, res) {
+    try {
+      const { id_color, nombre_color, codigo_hex } = req.body;
+      if (!id_color) {
+        req.session.mensajeError = 'Color no especificado.';
+        return res.redirect('/admin/inventario');
+      }
+      await AdminModel.actualizarColorHex(id_color, nombre_color, codigo_hex);
+      req.session.mensajeExito = 'Muestra de color actualizada correctamente.';
+      res.redirect('/admin/inventario');
+    } catch (error) {
+      console.error('Error al actualizar color:', error);
+      req.session.mensajeError = 'No se pudo actualizar el color.';
+      res.redirect('/admin/inventario');
+    }
+  }
+
+  // M6: Ver detalle de un pedido desde el panel Administrador
+  static async verDetallePedidoAdmin(req, res) {
+    try {
+      const { id } = req.params;
+      const pedido = await AdminModel.obtenerDetallePedidoAdmin(id);
+      if (!pedido) {
+        req.session.mensajeError = `El Pedido #${id} no existe.`;
+        return res.redirect('/admin/reportes');
+      }
+      res.render('admin/detalle_pedido', {
+        titulo: `Detalle Pedido #${pedido.id_pedido} - Admin PIJIC`,
+        pedido
+      });
+    } catch (error) {
+      console.error('Error en verDetallePedidoAdmin:', error);
+      res.status(500).render('errors/500', { titulo: 'Error del servidor' });
+    }
+  }
+
+  // M5: Endpoint JSON de autocompletado de clientes para el rol Administrador
+  static async buscarClientesJSON(req, res) {
+    try {
+      const q = (req.query.q || '').trim();
+      if (q.length < 2) {
+        return res.status(200).json({ clientes: [] });
+      }
+      const clientes = await AdminModel.buscarClientesAutocompletado(q, 10);
+      return res.status(200).json({ clientes });
+    } catch (error) {
+      console.error('Error en buscarClientesJSON:', error);
+      return res.status(500).json({ error: 'Error al consultar clientes', clientes: [] });
     }
   }
 

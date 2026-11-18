@@ -5,7 +5,11 @@
       paramsCSV.set(k, filtros[k]);
     }
   });
-  const urlCSV = `/admin/reportes/${reporte.slug}/exportar.csv` + (paramsCSV.toString() ? '?' + paramsCSV.toString() : '');
+  const qsBase = paramsCSV.toString();
+  const urlCSVResumen = `/admin/reportes/${reporte.slug}/exportar.csv` + (qsBase ? '?' + qsBase : '');
+  const paramsCSVDet = new URLSearchParams(paramsCSV);
+  paramsCSVDet.set('formato_csv', 'detalle');
+  const urlCSVDetalle = `/admin/reportes/${reporte.slug}/exportar.csv?` + paramsCSVDet.toString();
   const badgeClase = reporte.tipo === 'General' ? 'badge-success' : (reporte.tipo === 'Específica' ? 'badge-info' : 'badge-warning');
 %>
 
@@ -27,7 +31,12 @@
     <div style="display:flex; gap:10px; flex-wrap:wrap;">
       <a href="/admin/reportes" class="btn-sm" style="padding:9px 14px;">← Volver al centro de reportes</a>
       <% if (!esperandoSeleccion && filas && filas.length > 0) { %>
-        <a href="<%= urlCSV %>" class="btn-accent" style="padding:9px 16px; font-size:0.86rem;">⬇ Exportar CSV</a>
+        <% if (reporte.slug === 'ventas-periodo') { %>
+          <a href="<%= urlCSVResumen %>" class="btn-accent" style="padding:9px 14px; font-size:0.84rem;">⬇ CSV Resumen</a>
+          <a href="<%= urlCSVDetalle %>" class="btn-sm" style="padding:9px 14px; font-size:0.84rem; background:var(--bg-dark); color:#fff;">⬇ CSV Detalle por Línea</a>
+        <% } else { %>
+          <a href="<%= urlCSVResumen %>" class="btn-accent" style="padding:9px 16px; font-size:0.86rem;">⬇ Exportar CSV</a>
+        <% } %>
       <% } %>
     </div>
   </div>

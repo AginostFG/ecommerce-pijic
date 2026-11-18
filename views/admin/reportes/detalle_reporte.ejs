@@ -2,24 +2,126 @@
 <%- include('../../partials/admin_nav') %>
 <%- include('./partials/_encabezado_reporte') %>
 
-<!-- Barra de Filtros Específicos del Reporte -->
+<%
+  function construirUrlFiltro(cambios = {}) {
+    const p = new URLSearchParams();
+    Object.keys(filtros || {}).forEach(k => {
+      if (filtros[k] !== undefined && filtros[k] !== '') p.set(k, filtros[k]);
+    });
+    Object.keys(cambios).forEach(k => {
+      if (cambios[k] === null || cambios[k] === '') p.delete(k);
+      else p.set(k, cambios[k]);
+    });
+    return `/admin/reportes/${reporte.slug}?` + p.toString();
+  }
+%>
+
+<!-- Notas metodológicas y definiciones documentadas en pantalla (M1, M2, M4) -->
+<% if (reporte.slug === 'perdidas-bajas') { %>
+  <div class="alert alert-warning" style="margin-bottom:18px; font-size:0.88rem; display:block;">
+    <strong>📌 Definición de pérdida por baja (M1):</strong> El valor del stock que quedó sin vender al momento de dar de baja el producto se calcula como
+    <code>unidades en stock al momento de la baja × costo_promedio_ponderado del producto en ese instante</code>.
+    Esta cifra queda guardada como una foto inmutable en la prenda para no alterarse si cambian costos futuros. Los productos dados de baja antes de esta actualización se marcan con el badge <span class="badge badge-warning">Estimado</span>.
+  </div>
+<% } else if (reporte.slug === 'balance-prendas') { %>
+  <div class="alert alert-warning" style="margin-bottom:18px; font-size:0.88rem; display:block;">
+    <strong>📌 Nota contable sobre bajas (M2):</strong> Los productos dados de baja siguen apareciendo con su badge correspondiente. El balance (<code>Ingresos por ventas − Inversión en compras</code>) ya incluye en la inversión el costo total de las unidades compradas (incluidas las descartadas en la baja), por lo que <strong>no se resta dos veces la pérdida de la baja</strong>.
+  </div>
+<% } else if (reporte.slug === 'stock-bajo') { %>
+  <div class="alert alert-warning" style="margin-bottom:18px; font-size:0.88rem; display:block;">
+    <strong>📌 Nota sobre el filtro de fechas en Stock Bajo (M4):</strong> Dado que el stock físico es una foto del momento actual, el rango de fechas filtra las variantes según la <strong>última fecha de movimiento del producto</strong> (su última venta no cancelada o última compra recibida).
+  </div>
+<% } %>
+
+<!-- Barra de Filtros del Reporte -->
 <form action="/admin/reportes/<%= reporte.slug %>" method="GET" class="card" style="margin-bottom: 22px; display:flex; gap:14px; flex-wrap:wrap; align-items:flex-end;">
+
+  <!-- Filtro reutilizable de rango de fechas con atajos rápidos (M4) -->
+  <% if (reporte.slug !== 'disponibilidad-tiempo-real') { %>
+    <%- include('./partials/_filtro_fechas') %>
+  <% } %>
+
+  <!-- M5: Buscador en vivo de cliente por nombre, documento o correo -->
   <% if (reporte.slug === 'historial-cliente') { %>
-    <div class="form-group" style="margin:0; flex:2; min-width:260px;">
-      <label for="id_cliente">Seleccionar Cliente (Búsqueda rápida en la lista) *</label>
-      <select name="id_cliente" id="id_cliente" required>
-        <option value="">-- Elige un cliente para consultar su historial --</option>
-        <% catalogos.clientes.forEach(c => { %>
-          <option value="<%= c.id_usuario %>" <%= filtros.id_cliente == c.id_usuario ? 'selected' : '' %>>
-            <%= c.nombre %> (<%= c.correo %>)
+    <%- include('./partials/_buscador_cliente') %>
+  <% } %>
+
+  <!-- M2: Selectores de agrupación y año para Balance por Prenda -->
+  <% if (reporte.slug === 'balance-prendas') { %>
+    <div class="form-group" style="margin:0; min-width:190px;">
+      <label for="agrupacion">Agrupación del Período</label>
+      <select name="agrupacion" id="agrupacion">
+        <option value="total" <%= filtros.agrupacion === 'total' ? 'selected' : '' %>>Total acumulado</option>
+        <option value="mensual" <%= filtros.agrupacion === 'mensual' ? 'selected' : '' %>>Mensual (Tabla Pivote)</option>
+        <option value="anual" <%= filtros.agrupacion === 'anual' ? 'selected' : '' %>>Anual (Tabla Pivote)</option>
+      </select>
+    </div>
+    <div class="form-group" style="margin:0; width:130px;">
+      <label for="anio">Año específico</label>
+      <select name="anio" id="anio">
+        <option value="">Todos</option>
+        <% [2024, 2025, 2026, 2027].forEach(y => { %>
+          <option value="<%= y %>" <%= String(filtros.anio) === String(y) ? 'selected' : '' %>><%= y %></option>
+        <% }) %>
+      </select>
+    </div>
+  <% } %>
+
+  <!-- M3: Selectores de agrupación y filtros granulares para Ventas por Período -->
+  <% if (reporte.slug === 'ventas-periodo') { %>
+    <div class="form-group" style="margin:0; width:165px;">
+      <label for="agrupacion">Nivel de Resumen</label>
+      <select name="agrupacion" id="agrupacion">
+        <option value="dia" <%= filtros.agrupacion === 'dia' ? 'selected' : '' %>>Por Día</option>
+        <option value="mes" <%= filtros.agrupacion === 'mes' ? 'selected' : '' %>>Por Mes</option>
+        <option value="anio" <%= filtros.agrupacion === 'anio' ? 'selected' : '' %>>Por Año</option>
+      </select>
+    </div>
+    <div class="form-group" style="margin:0; width:155px;">
+      <label for="estado_pedido">Estado de Pago</label>
+      <select name="estado_pedido" id="estado_pedido">
+        <option value="">Todos (No cancelados)</option>
+        <option value="Pagado" <%= filtros.estado_pedido === 'Pagado' ? 'selected' : '' %>>Pagado</option>
+        <option value="Debiendo" <%= filtros.estado_pedido === 'Debiendo' ? 'selected' : '' %>>Debiendo (Contraentrega)</option>
+      </select>
+    </div>
+    <div class="form-group" style="margin:0; width:190px;">
+      <label for="id_metodo_pago">Método de Pago</label>
+      <select name="id_metodo_pago" id="id_metodo_pago">
+        <option value="">Todos los métodos</option>
+        <% catalogos.metodosPago.forEach(mp => { %>
+          <option value="<%= mp.id_metodo %>" <%= filtros.id_metodo_pago == mp.id_metodo ? 'selected' : '' %>><%= mp.nombre_metodo %></option>
+        <% }) %>
+      </select>
+    </div>
+    <div class="form-group" style="margin:0; width:175px;">
+      <label for="tipo_entrega">Tipo de Entrega</label>
+      <select name="tipo_entrega" id="tipo_entrega">
+        <option value="">Todas</option>
+        <option value="Propia" <%= filtros.tipo_entrega === 'Propia' ? 'selected' : '' %>>Logística Propia (Urabá)</option>
+        <option value="Transportadora Externa" <%= filtros.tipo_entrega === 'Transportadora Externa' ? 'selected' : '' %>>Transportadora Externa</option>
+      </select>
+    </div>
+    <div class="form-group" style="margin:0; flex:1; min-width:180px;">
+      <label for="busqueda_cliente">Cliente (Nombre / Doc.)</label>
+      <input type="text" name="busqueda_cliente" id="busqueda_cliente" value="<%= filtros.busqueda_cliente || '' %>" placeholder="Ej: Juan, 102845...">
+    </div>
+    <div class="form-group" style="margin:0; flex:1; min-width:190px;">
+      <label for="id_producto">Producto incluido</label>
+      <select name="id_producto" id="id_producto">
+        <option value="">Todos los productos</option>
+        <% catalogos.productos.forEach(pr => { %>
+          <option value="<%= pr.id_producto %>" <%= filtros.id_producto == pr.id_producto ? 'selected' : '' %>>
+            #<%= pr.id_producto %> - <%= pr.nombre_producto %>
           </option>
         <% }) %>
       </select>
     </div>
   <% } %>
 
-  <% if (['balance-prendas', 'mas-vendidos-temporada', 'desempeno-temporada'].includes(reporte.slug)) { %>
-    <div class="form-group" style="margin:0; flex:1; min-width:200px;">
+  <!-- Filtro de Temporada -->
+  <% if (['balance-prendas', 'perdidas-bajas', 'mas-vendidos-temporada', 'desempeno-temporada'].includes(reporte.slug)) { %>
+    <div class="form-group" style="margin:0; flex:1; min-width:190px;">
       <label for="id_temporada">Temporada <%= reporte.slug === 'desempeno-temporada' ? '*' : '' %></label>
       <select name="id_temporada" id="id_temporada" <%= reporte.slug === 'desempeno-temporada' ? 'required' : '' %>>
         <option value=""><%= reporte.slug === 'desempeno-temporada' ? '-- Selecciona una temporada --' : 'Todas las temporadas' %></option>
@@ -30,8 +132,9 @@
     </div>
   <% } %>
 
-  <% if (['balance-prendas', 'disponibilidad-tiempo-real'].includes(reporte.slug)) { %>
-    <div class="form-group" style="margin:0; flex:1; min-width:180px;">
+  <!-- Filtro de Categoría -->
+  <% if (['balance-prendas', 'perdidas-bajas', 'disponibilidad-tiempo-real'].includes(reporte.slug)) { %>
+    <div class="form-group" style="margin:0; flex:1; min-width:170px;">
       <label for="id_categoria">Categoría</label>
       <select name="id_categoria" id="id_categoria">
         <option value="">Todas las categorías</option>
@@ -42,26 +145,26 @@
     </div>
   <% } %>
 
-  <% if (reporte.slug === 'ventas-periodo') { %>
-    <div class="form-group" style="margin:0; flex:1; min-width:150px;">
-      <label for="fecha_inicio">Fecha Inicial</label>
-      <input type="date" name="fecha_inicio" id="fecha_inicio" value="<%= filtros.fecha_inicio %>">
-    </div>
-    <div class="form-group" style="margin:0; flex:1; min-width:150px;">
-      <label for="fecha_fin">Fecha Final</label>
-      <input type="date" name="fecha_fin" id="fecha_fin" value="<%= filtros.fecha_fin %>">
+  <!-- M6: Conmutador de vista Por Producto vs Por Producto + Talla + Color en Más Vendidos -->
+  <% if (reporte.slug === 'mas-vendidos-temporada') { %>
+    <div class="form-group" style="margin:0; min-width:210px;">
+      <label for="vista">Nivel de Desglose (M6)</label>
+      <select name="vista" id="vista">
+        <option value="producto" <%= filtros.vista !== 'variante' ? 'selected' : '' %>>Por Producto Consolidado</option>
+        <option value="variante" <%= filtros.vista === 'variante' ? 'selected' : '' %>>Por Producto + Talla + Color</option>
+      </select>
     </div>
   <% } %>
 
   <% if (reporte.slug === 'stock-bajo') { %>
-    <div class="form-group" style="margin:0; width:160px;">
+    <div class="form-group" style="margin:0; width:150px;">
       <label for="umbral">Umbral Stock (&le;)</label>
       <input type="number" name="umbral" id="umbral" min="0" max="200" value="<%= filtros.umbral %>">
     </div>
   <% } %>
 
   <% if (reporte.slug === 'pedidos-pendientes') { %>
-    <div class="form-group" style="margin:0; width:190px;">
+    <div class="form-group" style="margin:0; width:180px;">
       <label for="estado_entrega">Estado Entrega</label>
       <select name="estado_entrega" id="estado_entrega">
         <option value="">Todos los pendientes</option>
@@ -72,7 +175,7 @@
   <% } %>
 
   <% if (reporte.slug === 'pago-zona-entrega') { %>
-    <div class="form-group" style="margin:0; width:210px;">
+    <div class="form-group" style="margin:0; width:205px;">
       <label for="tipo_entrega">Tipo de Entrega</label>
       <select name="tipo_entrega" id="tipo_entrega">
         <option value="">Todas</option>
@@ -82,14 +185,14 @@
     </div>
   <% } %>
 
-  <% if (['balance-prendas', 'stock-bajo', 'mas-vendidos-temporada', 'clientes-fidelizacion', 'pedidos-pendientes', 'disponibilidad-tiempo-real', 'desempeno-temporada', 'clientes-multitemporada'].includes(reporte.slug)) { %>
-    <div class="form-group" style="margin:0; flex:2; min-width:200px;">
+  <% if (['balance-prendas', 'perdidas-bajas', 'stock-bajo', 'mas-vendidos-temporada', 'clientes-fidelizacion', 'pedidos-pendientes', 'disponibilidad-tiempo-real', 'desempeno-temporada', 'clientes-multitemporada'].includes(reporte.slug)) { %>
+    <div class="form-group" style="margin:0; flex:2; min-width:190px;">
       <label for="busqueda">Buscar texto</label>
-      <input type="text" name="busqueda" id="busqueda" value="<%= filtros.busqueda || '' %>" placeholder="Filtrar por nombre...">
+      <input type="text" name="busqueda" id="busqueda" value="<%= filtros.busqueda || '' %>" placeholder="Filtrar por nombre o documento...">
     </div>
   <% } %>
 
-  <div class="form-group" style="margin:0; width:125px;">
+  <div class="form-group" style="margin:0; width:120px;">
     <label for="limite">Filas / pág.</label>
     <select name="limite" id="limite">
       <% [10, 20, 50].forEach(n => { %>
@@ -105,20 +208,514 @@
   <a href="/admin/reportes/<%= reporte.slug %>" class="btn-sm" style="padding:10px 14px;">Restablecer</a>
 </form>
 
-<!-- Resultados del Reporte -->
-<% if (esperandoSeleccion) { %>
+<!-- ==========================================================================
+     TARJETAS DE RESUMEN Y TOTALES GENERALES (M1, M2, M3, M5)
+     ========================================================================== -->
+
+<% if (reporte.slug === 'perdidas-bajas' && resumen) { %>
+  <div class="kpi-grid" style="margin-top:0; margin-bottom:22px;">
+    <div class="kpi-card" style="border-left:4px solid #dc2626;">
+      <span class="kpi-label">Pérdida Total por Bajas (Filtro Activo)</span>
+      <div class="kpi-value" style="color:var(--danger-text); font-size:1.7rem;"><%= formatoCOP(resumen.perdida_total_cop) %></div>
+      <small style="color:var(--text-secondary);">Valor del stock descartado al dar de baja</small>
+    </div>
+    <div class="kpi-card">
+      <span class="kpi-label">Productos Dados de Baja</span>
+      <div class="kpi-value" style="font-size:1.7rem;"><%= resumen.total_productos_baja %></div>
+      <small style="color:var(--text-secondary);">Referencias inactivas en el filtro</small>
+    </div>
+    <div class="kpi-card">
+      <span class="kpi-label">Unidades Físicas Perdidas</span>
+      <div class="kpi-value" style="font-size:1.7rem;"><%= Number(resumen.total_unidades_perdidas).toLocaleString('es-CO') %> unids.</div>
+      <small style="color:var(--text-secondary);">Suma de unidades_en_baja</small>
+    </div>
+    <div class="kpi-card">
+      <span class="kpi-label">Balance Histórico Acumulado</span>
+      <div class="kpi-value" style="font-size:1.7rem; color:<%= Number(resumen.balance_historico_total) >= 0 ? 'var(--success-text)' : 'var(--danger-text)' %>;">
+        <%= formatoCOP(resumen.balance_historico_total) %>
+      </div>
+      <small style="color:var(--text-secondary);">Ventas (<%= formatoCOP(resumen.ingresos_historicos_total) %>) − Compras (<%= formatoCOP(resumen.inversion_historica_total) %>)</small>
+    </div>
+  </div>
+<% } %>
+
+<% if (reporte.slug === 'balance-prendas' && totalesGenerales) { %>
+  <div class="kpi-grid" style="margin-top:0; margin-bottom:22px;">
+    <div class="kpi-card">
+      <span class="kpi-label">Inversión Total del Período</span>
+      <div class="kpi-value" style="font-size:1.6rem;"><%= formatoCOP(totalesGenerales.total_invertido) %></div>
+      <small style="color:var(--text-secondary);"><%= Number(totalesGenerales.total_unidades_compradas).toLocaleString('es-CO') %> unids. compradas</small>
+    </div>
+    <div class="kpi-card">
+      <span class="kpi-label">Ingresos por Ventas del Período</span>
+      <div class="kpi-value" style="font-size:1.6rem; color:var(--accent);"><%= formatoCOP(totalesGenerales.total_ingresado) %></div>
+      <small style="color:var(--text-secondary);"><%= Number(totalesGenerales.total_unidades_vendidas).toLocaleString('es-CO') %> unids. vendidas</small>
+    </div>
+    <div class="kpi-card" style="border-left:4px solid <%= Number(totalesGenerales.total_balance) >= 0 ? '#16a34a' : '#dc2626' %>;">
+      <span class="kpi-label">Balance General (Ganancia / Pérdida)</span>
+      <div class="kpi-value" style="font-size:1.6rem; color:<%= Number(totalesGenerales.total_balance) >= 0 ? 'var(--success-text)' : 'var(--danger-text)' %>;">
+        <%= formatoCOP(totalesGenerales.total_balance) %>
+      </div>
+      <small style="color:var(--text-secondary);">Sobre <%= totalesGenerales.total_prendas %> prenda(s) evaluadas</small>
+    </div>
+  </div>
+<% } %>
+
+<% if (reporte.slug === 'ventas-periodo' && totalesResumen) { %>
+  <div class="kpi-grid" style="margin-top:0; margin-bottom:18px;">
+    <div class="kpi-card">
+      <span class="kpi-label">Pedidos Procesados</span>
+      <div class="kpi-value" style="font-size:1.55rem;"><%= Number(totalesResumen.total_pedidos).toLocaleString('es-CO') %></div>
+      <small style="color:var(--text-secondary);"><%= Number(totalesResumen.prendas_vendidas).toLocaleString('es-CO') %> prendas vendidas</small>
+    </div>
+    <div class="kpi-card">
+      <span class="kpi-label">Subtotal Bruto</span>
+      <div class="kpi-value" style="font-size:1.55rem;"><%= formatoCOP(totalesResumen.subtotal_bruto) %></div>
+      <small style="color:var(--text-secondary);">Descuento puntos: -<%= formatoCOP(totalesResumen.descuento_puntos_total) %></small>
+    </div>
+    <div class="kpi-card" style="border-left:4px solid var(--accent);">
+      <span class="kpi-label">Ingreso Neto Total</span>
+      <div class="kpi-value" style="font-size:1.55rem; color:var(--accent);"><%= formatoCOP(totalesResumen.ingresos_netos) %></div>
+      <small style="color:var(--text-secondary);">Excluye pedidos cancelados</small>
+    </div>
+    <div class="kpi-card">
+      <span class="kpi-label">Ticket Promedio</span>
+      <div class="kpi-value" style="font-size:1.55rem; color:var(--success-text);"><%= formatoCOP(totalesResumen.ticket_promedio) %></div>
+      <small style="color:var(--text-secondary);">Ingreso neto / pedido</small>
+    </div>
+  </div>
+
+  <div style="margin-bottom:18px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+    <div>
+      <% if (filtros.ver_ventas === '1' || periodoDetalleActivo) { %>
+        <a href="<%= construirUrlFiltro({ ver_ventas: null, periodo_detalle: null }) %>" class="btn-sm">
+          ▲ Ocultar listado detallado de pedidos
+        </a>
+      <% } else { %>
+        <a href="<%= construirUrlFiltro({ ver_ventas: '1' }) %>" class="btn-accent" style="padding:8px 16px; font-size:0.86rem;">
+          🔍 Ver todas las ventas detalladas del filtro (<%= totalesResumen.total_pedidos %> pedidos)
+        </a>
+      <% } %>
+    </div>
+  </div>
+<% } %>
+
+<!-- M5: Lista de selección cuando la búsqueda devuelve varios clientes -->
+<% if (reporte.slug === 'historial-cliente' && coincidenciasClientes && coincidenciasClientes.length > 1) { %>
+  <div class="card" style="margin-bottom:22px;">
+    <h3 style="margin-top:0;">Se encontraron <%= coincidenciasClientes.length %> clientes para "<%= filtros.q_cliente %>"</h3>
+    <p style="color:var(--text-secondary); margin-bottom:14px;">Selecciona el cliente cuyo historial deseas abrir:</p>
+    <div class="table-responsive">
+      <table>
+        <thead>
+          <tr>
+            <th>Cliente</th>
+            <th>Documento</th>
+            <th>Correo</th>
+            <th>Saldo Puntos</th>
+            <th>Pedidos</th>
+            <th>Total Gastado</th>
+            <th>Acción</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% coincidenciasClientes.forEach(c => { %>
+            <tr>
+              <td><strong><%= c.nombre %></strong></td>
+              <td><%= c.documento ? ((c.tipo_documento || 'CC') + ' ' + c.documento) : 'Sin documento' %></td>
+              <td><%= c.correo %></td>
+              <td><%= Number(c.puntos_fidelizacion || 0).toLocaleString('es-CO') %> pts</td>
+              <td><%= c.total_pedidos %></td>
+              <td><%= formatoCOP(c.total_gastado) %></td>
+              <td>
+                <a href="<%= construirUrlFiltro({ id_cliente: c.id_usuario, q_cliente: null, pagina: 1 }) %>" class="btn-primary" style="width:auto; padding:6px 14px; font-size:0.84rem;">
+                  Abrir Historial →
+                </a>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+<% } %>
+
+<!-- M5: Ficha Resumen del Cliente Seleccionado -->
+<% if (reporte.slug === 'historial-cliente' && clienteFicha) { %>
+  <div class="card" style="margin-bottom:22px; border-left:4px solid var(--accent); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px;">
+    <div>
+      <span class="badge badge-info" style="margin-bottom:4px;">Ficha del Cliente #<%= clienteFicha.id_usuario %></span>
+      <h3 style="margin:0 0 4px 0;"><%= clienteFicha.nombre %></h3>
+      <p style="margin:2px 0; font-size:0.9rem;">
+        <strong>Documento:</strong> <%= clienteFicha.documento ? ((clienteFicha.tipo_documento || 'CC') + ' ' + clienteFicha.documento) : 'No registrado' %>
+        · <strong>Correo:</strong> <%= clienteFicha.correo %>
+      </p>
+      <p style="margin:2px 0; font-size:0.86rem; color:var(--text-secondary);">
+        <strong>Fecha de registro:</strong> <%= new Date(clienteFicha.fecha_registro).toLocaleDateString('es-CO') %>
+        · <strong>Dirección:</strong> <%= clienteFicha.direccion || 'No especificada' %>
+      </p>
+    </div>
+    <div style="display:flex; gap:18px; flex-wrap:wrap; text-align:center;">
+      <div style="background:var(--bg-muted); padding:10px 16px; border-radius:var(--radius-sm);">
+        <small style="color:var(--text-muted); display:block;">Puntos Actuales</small>
+        <strong style="color:var(--accent); font-size:1.15rem;"><%= Number(clienteFicha.puntos_fidelizacion).toLocaleString('es-CO') %> pts</strong>
+      </div>
+      <div style="background:var(--bg-muted); padding:10px 16px; border-radius:var(--radius-sm);">
+        <small style="color:var(--text-muted); display:block;">Pedidos Históricos</small>
+        <strong style="font-size:1.15rem;"><%= clienteFicha.numero_pedidos_historico %></strong>
+      </div>
+      <div style="background:var(--bg-muted); padding:10px 16px; border-radius:var(--radius-sm);">
+        <small style="color:var(--text-muted); display:block;">Total Gastado</small>
+        <strong style="color:var(--success-text); font-size:1.15rem;"><%= formatoCOP(clienteFicha.total_gastado_historico) %></strong>
+      </div>
+    </div>
+  </div>
+<% } %>
+
+<!-- ==========================================================================
+     M2(b): DETALLE DE EVOLUCIÓN Y DESGLOSE POR TALLA/COLOR DE UNA PRENDA
+     ========================================================================== -->
+<% if (reporte.slug === 'balance-prendas' && detallePrenda) { %>
+  <div class="card" style="margin-bottom:24px; border:2px solid var(--accent);">
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:12px; margin-bottom:14px;">
+      <div>
+        <span class="badge badge-info">Detalle de Evolución y Variantes (M2 + M6)</span>
+        <h3 style="margin:6px 0 2px 0;">
+          #<%= detallePrenda.producto.id_producto %> — <%= detallePrenda.producto.nombre_producto %>
+          <% if (!detallePrenda.producto.estado) { %>
+            <span class="badge badge-danger">Dado de baja</span>
+          <% } %>
+        </h3>
+        <small style="color:var(--text-secondary);">
+          Categoría: <strong><%= detallePrenda.producto.nombre_categoria %></strong> ·
+          Temporada: <strong><%= detallePrenda.producto.nombre_temporada %></strong> ·
+          Marca: <strong><%= detallePrenda.producto.nombre_marca %></strong>
+        </small>
+      </div>
+      <a href="<%= construirUrlFiltro({ id_producto_detalle: null }) %>" class="btn-sm">✕ Cerrar detalle de prenda</a>
+    </div>
+
+    <!-- Evolución período a período con barras proporcionales CSS/SVG -->
+    <h4 style="margin:14px 0 8px 0;">1. Evolución Período a Período (<%= filtros.agrupacion === 'anual' ? 'Anual' : 'Mensual' %>)</h4>
+    <% if (detallePrenda.evolucion.length === 0) { %>
+      <p style="color:var(--text-secondary); font-size:0.9rem;">Esta prenda no registra movimientos de compra ni venta en el rango seleccionado.</p>
+    <% } else { %>
+      <%
+        const maxValorGrafico = Math.max(
+          1,
+          ...detallePrenda.evolucion.map(e => Math.max(Number(e.dinero_invertido) || 0, Number(e.dinero_ingresado) || 0))
+        );
+      %>
+      <div class="table-responsive" style="margin-bottom:18px;">
+        <table>
+          <thead>
+            <tr>
+              <th>Período</th>
+              <th>Unids. Compradas</th>
+              <th>Dinero Invertido</th>
+              <th>Unids. Vendidas</th>
+              <th>Dinero Ingresado</th>
+              <th>Balance del Período</th>
+              <th style="min-width:210px;">Gráfico Comparativo (Inversión vs. Ingreso)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% detallePrenda.evolucion.forEach(ev => { %>
+              <%
+                const pctInv = Math.round(((Number(ev.dinero_invertido) || 0) / maxValorGrafico) * 100);
+                const pctIng = Math.round(((Number(ev.dinero_ingresado) || 0) / maxValorGrafico) * 100);
+              %>
+              <tr>
+                <td><strong><%= ev.periodo %></strong></td>
+                <td><%= ev.unidades_compradas %></td>
+                <td><%= formatoCOP(ev.dinero_invertido) %></td>
+                <td><%= ev.unidades_vendidas %></td>
+                <td><%= formatoCOP(ev.dinero_ingresado) %></td>
+                <td>
+                  <strong style="color:<%= ev.balance >= 0 ? 'var(--success-text)' : 'var(--danger-text)' %>;">
+                    <%= formatoCOP(ev.balance) %>
+                  </strong>
+                </td>
+                <td>
+                  <div style="font-size:0.74rem; margin-bottom:3px;">
+                    <span style="color:#64748b;">Inv:</span>
+                    <div style="display:inline-block; width:75%; background:#e2e8f0; height:8px; border-radius:4px; vertical-align:middle;">
+                      <div style="width:<%= pctInv %>%; background:#64748b; height:8px; border-radius:4px;"></div>
+                    </div>
+                  </div>
+                  <div style="font-size:0.74rem;">
+                    <span style="color:var(--accent);">Ing:</span>
+                    <div style="display:inline-block; width:75%; background:#e2e8f0; height:8px; border-radius:4px; vertical-align:middle;">
+                      <div style="width:<%= pctIng %>%; background:var(--accent); height:8px; border-radius:4px;"></div>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    <% } %>
+
+    <!-- Desglose por Talla y Color de la prenda (M6) -->
+    <h4 style="margin:14px 0 8px 0;">2. Desglose por Variante (Talla y Color)</h4>
+    <div class="table-responsive">
+      <table>
+        <thead>
+          <tr>
+            <th>Talla</th>
+            <th>Color</th>
+            <th>Stock Físico Actual</th>
+            <th>Unids. Compradas</th>
+            <th>Inversión</th>
+            <th>Unids. Vendidas</th>
+            <th>Ingresos</th>
+            <th>Balance Variante</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% detallePrenda.variantes.forEach(v => { %>
+            <tr>
+              <td><span class="badge-marca"><%= v.nombre_talla %></span></td>
+              <td>
+                <span style="display:inline-flex; align-items:center; gap:6px;">
+                  <span class="mini-swatch" style="background-color:<%= v.codigo_hex || '#71717A' %>;"></span>
+                  <%= v.nombre_color %>
+                </span>
+              </td>
+              <td><strong><%= v.stock_actual %></strong></td>
+              <td><%= v.unidades_compradas %></td>
+              <td><%= formatoCOP(v.dinero_invertido) %></td>
+              <td><%= v.unidades_vendidas %></td>
+              <td><%= formatoCOP(v.dinero_ingresado) %></td>
+              <td>
+                <strong style="color:<%= Number(v.balance) >= 0 ? 'var(--success-text)' : 'var(--danger-text)' %>;">
+                  <%= formatoCOP(v.balance) %>
+                </strong>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+<% } %>
+
+<!-- ==========================================================================
+     M2(a): TABLA PIVOTE PRENDA × PERÍODO (CUANDO AGRUPACIÓN ES MENSUAL O ANUAL)
+     ========================================================================== -->
+<% if (reporte.slug === 'balance-prendas' && tablaPivote && tablaPivote.periodos.length > 0) { %>
+  <div class="card" style="margin-bottom:24px;">
+    <h3 style="margin-top:0; margin-bottom:6px;">
+      Matriz Pivote: Prenda × Período (<%= filtros.agrupacion === 'mensual' ? 'Mensual' : 'Anual' %>)
+    </h3>
+    <p style="margin:0 0 12px 0; font-size:0.86rem; color:var(--text-secondary);">
+      Cada celda muestra el <strong>Balance Neto</strong> del período y debajo <code>(Compradas / Vendidas)</code>. Haz clic en el nombre de una prenda para abrir su evolución y desglose por talla/color.
+    </p>
+    <div class="table-responsive">
+      <table>
+        <thead>
+          <tr>
+            <th>Prenda</th>
+            <% tablaPivote.periodos.forEach(per => { %>
+              <th style="text-align:right;"><%= per %></th>
+            <% }) %>
+            <th style="text-align:right; background:#27272a;">Total Fila</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% filas.forEach(f => { %>
+            <tr>
+              <td>
+                <a href="<%= construirUrlFiltro({ id_producto_detalle: f.id_producto }) %>" style="color:var(--accent); font-weight:700; text-decoration:none;">
+                  #<%= f.id_producto %> <%= f.nombre_producto %>
+                </a>
+                <% if (!f.estado) { %>
+                  <span class="badge badge-danger" style="margin-left:4px;">Baja</span>
+                <% } %>
+              </td>
+              <% tablaPivote.periodos.forEach(per => { %>
+                <% const c = tablaPivote.matriz[f.id_producto] ? tablaPivote.matriz[f.id_producto][per] : null; %>
+                <td style="text-align:right; font-size:0.84rem;">
+                  <% if (!c || (c.compradas === 0 && c.vendidas === 0)) { %>
+                    <span style="color:var(--text-muted);">—</span>
+                  <% } else { %>
+                    <strong style="color:<%= c.balance >= 0 ? 'var(--success-text)' : 'var(--danger-text)' %>;">
+                      <%= formatoCOP(c.balance) %>
+                    </strong>
+                    <br>
+                    <small style="color:var(--text-muted);">C:<%= c.compradas %> / V:<%= c.vendidas %></small>
+                  <% } %>
+                </td>
+              <% }) %>
+              <td style="text-align:right; background:#f4f4f5; font-weight:700;">
+                <span style="color:<%= Number(f.balance_ganancia_perdida) >= 0 ? 'var(--success-text)' : 'var(--danger-text)' %>;">
+                  <%= formatoCOP(f.balance_ganancia_perdida) %>
+                </span>
+                <br>
+                <small style="color:var(--text-secondary);">C:<%= f.unidades_compradas %> / V:<%= f.unidades_vendidas %></small>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+        <tfoot>
+          <tr style="background:var(--bg-muted); font-weight:700;">
+            <td>Totales por Columna (Página)</td>
+            <% tablaPivote.periodos.forEach(per => { %>
+              <% const tc = tablaPivote.totalesPorColumna[per]; %>
+              <td style="text-align:right; font-size:0.85rem;">
+                <span style="color:<%= tc.balance >= 0 ? 'var(--success-text)' : 'var(--danger-text)' %>;">
+                  <%= formatoCOP(tc.balance) %>
+                </span>
+                <br>
+                <small style="color:var(--text-secondary);">C:<%= tc.compradas %> / V:<%= tc.vendidas %></small>
+              </td>
+            <% }) %>
+            <td style="text-align:right;">
+              <%= formatoCOP(filas.reduce((a, b) => a + Number(b.balance_ganancia_perdida || 0), 0)) %>
+            </td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+<% } %>
+
+<!-- ==========================================================================
+     M3 NIVEL 2: DETALLE DE PEDIDOS ESPECÍFICOS Y SUS LÍNEAS EXPANDIBLES
+     ========================================================================== -->
+<% if (reporte.slug === 'ventas-periodo' && pedidosDetalle && pedidosDetalle.length > 0) { %>
+  <div class="card" style="margin-bottom:24px; border:2px solid var(--accent);">
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:12px;">
+      <div>
+        <span class="badge badge-info">Nivel 2: Ventas Específicas y Líneas de Pedido (M3 + M6)</span>
+        <h3 style="margin:4px 0 0 0;">
+          Pedidos del Período <%= periodoDetalleActivo ? ('(' + periodoDetalleActivo + ')') : '(Filtro Activo)' %>
+          — <%= pedidosDetalle.length %> pedido(s)
+        </h3>
+      </div>
+      <a href="<%= construirUrlFiltro({ periodo_detalle: null, ver_ventas: null }) %>" class="btn-sm">✕ Cerrar detalle de pedidos</a>
+    </div>
+
+    <div class="table-responsive">
+      <table>
+        <thead>
+          <tr>
+            <th>Pedido #</th>
+            <th>Fecha y Hora</th>
+            <th>Cliente (Documento)</th>
+            <th>Método Pago</th>
+            <th>Estado Pago</th>
+            <th>Estado Entrega</th>
+            <th>Subtotal</th>
+            <th>Desc. Puntos</th>
+            <th>Total Neto</th>
+            <th>Líneas</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% pedidosDetalle.forEach(ped => { %>
+            <tr>
+              <td>
+                <a href="/admin/pedidos/<%= ped.id_pedido %>" style="font-weight:700; color:var(--accent);">
+                  #<%= ped.id_pedido %>
+                </a>
+              </td>
+              <td><%= new Date(ped.fecha_pedido).toLocaleString('es-CO') %></td>
+              <td>
+                <strong><%= ped.cliente_nombre %></strong><br>
+                <small style="color:var(--text-muted);">
+                  <%= ped.cliente_documento ? ((ped.cliente_tipo_documento || 'CC') + ' ' + ped.cliente_documento) : 'Sin documento' %>
+                </small>
+              </td>
+              <td><%= ped.nombre_metodo %></td>
+              <td><span class="badge-estado <%= ped.estado_pedido.toLowerCase() %>"><%= ped.estado_pedido %></span></td>
+              <td><span class="badge-estado <%= ped.estado_entrega.toLowerCase().replace(/\s+/g, '-') %>"><%= ped.estado_entrega %></span></td>
+              <td><%= formatoCOP(ped.subtotal) %></td>
+              <td style="color:var(--success-text);">- <%= formatoCOP(ped.descuento_puntos) %></td>
+              <td><strong><%= formatoCOP(ped.total) %></strong></td>
+              <td>
+                <button type="button" class="btn-sm" onclick="toggleFilaDetalle('lineas-ped-m3-<%= ped.id_pedido %>')">
+                  Ver <%= ped.lineas.length %> línea(s) ▾
+                </button>
+              </td>
+            </tr>
+            <tr id="lineas-ped-m3-<%= ped.id_pedido %>" class="fila-expandible-detalle" style="display:none;">
+              <td colspan="10" style="padding:12px 20px;">
+                <div style="background:#fff; border:1px solid var(--border-color); border-radius:var(--radius-sm); padding:10px 14px;">
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                    <strong style="font-size:0.85rem;">Desglose de Prendas del Pedido #<%= ped.id_pedido %></strong>
+                    <a href="/admin/pedidos/<%= ped.id_pedido %>" class="btn-sm" style="font-size:0.76rem;">Abrir ficha completa del pedido →</a>
+                  </div>
+                  <table style="margin:0;">
+                    <thead>
+                      <tr style="background:var(--bg-muted); color:var(--text-primary); font-size:0.78rem;">
+                        <th>Producto</th>
+                        <th>Talla</th>
+                        <th>Color</th>
+                        <th>Cantidad</th>
+                        <th>Precio Unitario Histórico</th>
+                        <th>Subtotal Línea</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <% ped.lineas.forEach(lin => { %>
+                        <tr>
+                          <td>
+                            <strong><%= lin.nombre_producto %></strong>
+                            <% if (!lin.producto_estado) { %>
+                              <span class="badge badge-danger">Dado de baja</span>
+                            <% } %>
+                          </td>
+                          <td><span class="badge-marca"><%= lin.nombre_talla %></span></td>
+                          <td>
+                            <span style="display:inline-flex; align-items:center; gap:5px;">
+                              <span class="mini-swatch" style="background-color:<%= lin.codigo_hex || '#71717A' %>;"></span>
+                              <%= lin.nombre_color %>
+                            </span>
+                          </td>
+                          <td><%= lin.cantidad %></td>
+                          <td><%= formatoCOP(lin.precio_unitario) %></td>
+                          <td><strong><%= formatoCOP(lin.subtotal_linea) %></strong></td>
+                        </tr>
+                      <% }) %>
+                    </tbody>
+                  </table>
+                </div>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+        <tfoot>
+          <tr style="background:var(--bg-muted); font-weight:700;">
+            <td colspan="6">Suma de los <%= pedidosDetalle.length %> pedido(s) listados</td>
+            <td><%= formatoCOP(pedidosDetalle.reduce((a, b) => a + Number(b.subtotal || 0), 0)) %></td>
+            <td style="color:var(--success-text);">- <%= formatoCOP(pedidosDetalle.reduce((a, b) => a + Number(b.descuento_puntos || 0), 0)) %></td>
+            <td style="color:var(--accent);"><%= formatoCOP(pedidosDetalle.reduce((a, b) => a + Number(b.total || 0), 0)) %></td>
+            <td></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+<% } %>
+
+<!-- ==========================================================================
+     TABLA PRINCIPAL DEL REPORTE
+     ========================================================================== -->
+<% if (esperandoSeleccion && (!coincidenciasClientes || coincidenciasClientes.length <= 1)) { %>
   <div class="card" style="text-align:center; padding:42px 20px;">
     <h3>Selecciona un parámetro arriba para ejecutar la consulta</h3>
     <p style="color:var(--text-secondary); margin:0;">
-      Para optimizar el rendimiento del servidor, este reporte se ejecuta únicamente cuando eliges el filtro principal y presionas <strong>Consultar</strong>.
+      Para optimizar el rendimiento del servidor, este reporte se ejecuta cuando buscas o eliges el filtro principal y presionas <strong>Consultar</strong>.
     </p>
   </div>
-<% } else if (!filas || filas.length === 0) { %>
+<% } else if ((!filas || filas.length === 0) && (!coincidenciasClientes || coincidenciasClientes.length <= 1)) { %>
   <div class="card" style="text-align:center; padding:42px 20px;">
     <h3>No hay datos para este reporte</h3>
     <p style="color:var(--text-secondary); margin:0;">No se encontraron registros que coincidan con los filtros aplicados.</p>
   </div>
-<% } else { %>
+<% } else if (filas && filas.length > 0) { %>
   <%
     function linkOrdenColumna(colKey) {
       const p = new URLSearchParams();
@@ -159,29 +756,105 @@
         </tr>
       </thead>
       <tbody>
-        <% filas.forEach(fila => { %>
+        <% filas.forEach((fila, idxFila) => { %>
           <tr>
             <% columnas.forEach(col => { %>
               <% const val = fila[col.campo]; %>
               <td>
                 <% if (col.esProductoConEstado) { %>
-                  <strong><%= val %></strong>
+                  <% if (col.enlaceDetallePrenda) { %>
+                    <a href="<%= construirUrlFiltro({ id_producto_detalle: fila.id_producto }) %>" style="color:var(--accent); font-weight:700; text-decoration:none;">
+                      <%= val %>
+                    </a>
+                  <% } else { %>
+                    <strong><%= val %></strong>
+                  <% } %>
                   <% if (fila.estado === 0 || fila.estado === false) { %>
                     <span class="badge badge-danger" style="margin-left:6px;">Dado de baja</span>
                   <% } %>
+                  <% if (fila.baja_estimada) { %>
+                    <span class="badge badge-warning" style="margin-left:4px;" title="Calculado sobre stock residual al migrar">Estimado</span>
+                  <% } %>
                 <% } else if (col.formato === 'cop') { %>
                   <%= formatoCOP(val) %>
-                <% } else if (col.formato === 'balance_cop') { %>
+                <% } else if (col.formato === 'perdida_baja') { %>
+                  <strong style="color:var(--danger-text);"><%= formatoCOP(val) %></strong>
+                <% } else if (col.formato === 'balance_cop' || col.formato === 'balance_historico') { %>
                   <strong style="color:<%= Number(val) >= 0 ? 'var(--success-text)' : 'var(--danger-text)' %>;">
                     <%= formatoCOP(val) %>
                   </strong>
+                  <% if (col.formato === 'balance_historico') { %>
+                    <br>
+                    <small style="color:var(--text-muted);">
+                      Ing: <%= formatoCOP(fila.dinero_ingresado) %> / Inv: <%= formatoCOP(fila.dinero_invertido) %>
+                    </small>
+                  <% } %>
                 <% } else if (col.formato === 'fecha') { %>
-                  <%= val ? new Date(val).toLocaleDateString('es-CO') : '—' %>
+                  <%= val ? new Date(val).toLocaleDateString('es-CO') : 'Sin movimientos' %>
+                <% } else if (col.formato === 'periodo_texto') { %>
+                  <strong><%= val %></strong>
                 <% } else if (col.formato === 'puntos') { %>
                   <strong style="color:var(--accent);"><%= Number(val || 0).toLocaleString('es-CO') %> pts</strong>
                   <br><small style="color:var(--success-text);"><%= formatoCOP(Number(val || 0) * configPuntos.valorPuntoCop) %></small>
+                <% } else if (col.formato === 'puntos_ganados') { %>
+                  <strong style="color:var(--success-text);">+<%= Number(val || 0).toLocaleString('es-CO') %> pts</strong>
                 <% } else if (col.formato === 'stock_critico') { %>
                   <strong style="color:var(--danger-text);"><%= val %> unids.</strong>
+                <% } else if (col.formato === 'talla_chip') { %>
+                  <span class="badge-marca"><%= val %></span>
+                <% } else if (col.formato === 'color_swatch') { %>
+                  <span style="display:inline-flex; align-items:center; gap:6px;">
+                    <span class="mini-swatch" style="background-color:<%= fila.codigo_hex || '#71717A' %>;"></span>
+                    <%= val %>
+                  </span>
+                <% } else if (col.formato === 'cliente_con_doc') { %>
+                  <strong><%= val %></strong>
+                  <% if (fila.documento) { %>
+                    <br><small style="color:var(--text-muted);"><%= fila.tipo_documento || 'CC' %> <%= fila.documento %></small>
+                  <% } %>
+                <% } else if (col.formato === 'link_pedido') { %>
+                  <a href="/admin/pedidos/<%= val %>" style="font-weight:700; color:var(--accent); text-decoration:none;">
+                    #<%= val %> →
+                  </a>
+                <% } else if (col.formato === 'links_multiples_pedidos') { %>
+                  <% if (val) { %>
+                    <div style="display:flex; gap:5px; flex-wrap:wrap;">
+                      <% String(val).split(',').slice(0, 8).forEach(idPed => { %>
+                        <a href="/admin/pedidos/<%= idPed.trim() %>" class="btn-sm" style="padding:2px 7px; font-size:0.75rem;">
+                          #<%= idPed.trim() %>
+                        </a>
+                      <% }) %>
+                    </div>
+                  <% } else { %>
+                    —
+                  <% } %>
+                <% } else if (col.formato === 'link_ventas_periodo') { %>
+                  <a href="<%= construirUrlFiltro({ periodo_detalle: val }) %>" class="btn-sm">
+                    Ver ventas (<%= fila.total_pedidos %>)
+                  </a>
+                <% } else if (col.formato === 'boton_expandir_lineas') { %>
+                  <button type="button" class="btn-sm" onclick="toggleFilaDetalle('lineas-hist-<%= fila.id_pedido %>')">
+                    Ver <%= (fila.lineas || []).length %> línea(s) ▾
+                  </button>
+                <% } else if (col.formato === 'matriz_variantes_inline') { %>
+                  <% if (fila.variantes_detalle && fila.variantes_detalle.length > 0) { %>
+                    <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                      <% fila.variantes_detalle.forEach(vd => { %>
+                        <span class="variante-pill" style="font-size:0.76rem; padding:2px 8px; <%= vd.cantidad_stock <= 0 ? 'background:#fee2e2; border-color:#fca5a5;' : (vd.cantidad_stock <= 5 ? 'background:#fef3c7; border-color:#fde68a;' : '') %>">
+                          <strong><%= vd.nombre_talla %></strong>
+                          <span class="mini-swatch" style="width:11px; height:11px; background-color:<%= vd.codigo_hex || '#71717A' %>;"></span>
+                          <span><%= vd.nombre_color %>:</span>
+                          <strong><%= vd.cantidad_stock %></strong>
+                        </span>
+                      <% }) %>
+                    </div>
+                  <% } else { %>
+                    <span style="color:var(--danger-text); font-size:0.82rem;">Sin variantes en inventario</span>
+                  <% } %>
+                <% } else if (col.formato === 'boton_expandir_celda_pedidos') { %>
+                  <button type="button" class="btn-sm" onclick="toggleFilaDetalle('celda-pedidos-<%= idxFila %>')">
+                    Ver <%= fila.cantidad_pedidos %> pedido(s) ▾
+                  </button>
                 <% } else if (col.formato === 'badge') { %>
                   <span class="badge-estado <%= String(val || '').toLowerCase().replace(/\s+/g, '-') %>"><%= val %></span>
                 <% } else if (col.formato === 'link_puntos') { %>
@@ -192,6 +865,74 @@
               </td>
             <% }) %>
           </tr>
+
+          <!-- Fila expandible para Historial de Compras de un Cliente (M5 + M6) -->
+          <% if (reporte.slug === 'historial-cliente' && fila.lineas && fila.lineas.length > 0) { %>
+            <tr id="lineas-hist-<%= fila.id_pedido %>" class="fila-expandible-detalle" style="display:none;">
+              <td colspan="<%= columnas.length %>" style="padding:12px 20px;">
+                <div style="background:#fff; border:1px solid var(--border-color); border-radius:var(--radius-sm); padding:10px 14px;">
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                    <strong style="font-size:0.85rem;">Líneas del Pedido #<%= fila.id_pedido %></strong>
+                    <a href="/admin/pedidos/<%= fila.id_pedido %>" class="btn-sm" style="font-size:0.75rem;">Abrir detalle completo del pedido →</a>
+                  </div>
+                  <table style="margin:0;">
+                    <thead>
+                      <tr style="background:var(--bg-muted); color:var(--text-primary); font-size:0.78rem;">
+                        <th>Producto</th>
+                        <th>Talla</th>
+                        <th>Color</th>
+                        <th>Cantidad</th>
+                        <th>Precio Unitario Histórico</th>
+                        <th>Subtotal Línea</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <% fila.lineas.forEach(l => { %>
+                        <tr>
+                          <td>
+                            <strong><%= l.nombre_producto %></strong>
+                            <% if (!l.producto_estado) { %>
+                              <span class="badge badge-danger">Dado de baja</span>
+                            <% } %>
+                          </td>
+                          <td><span class="badge-marca"><%= l.nombre_talla %></span></td>
+                          <td>
+                            <span style="display:inline-flex; align-items:center; gap:5px;">
+                              <span class="mini-swatch" style="background-color:<%= l.codigo_hex || '#71717A' %>;"></span>
+                              <%= l.nombre_color %>
+                            </span>
+                          </td>
+                          <td><%= l.cantidad %></td>
+                          <td><%= formatoCOP(l.precio_unitario) %></td>
+                          <td><strong><%= formatoCOP(l.subtotal_linea) %></strong></td>
+                        </tr>
+                      <% }) %>
+                    </tbody>
+                  </table>
+                </div>
+              </td>
+            </tr>
+          <% } %>
+
+          <!-- Fila expandible para Relación Pago vs Zona de Entrega (M6) -->
+          <% if (reporte.slug === 'pago-zona-entrega' && fila.pedidos_celda && fila.pedidos_celda.length > 0) { %>
+            <tr id="celda-pedidos-<%= idxFila %>" class="fila-expandible-detalle" style="display:none;">
+              <td colspan="<%= columnas.length %>" style="padding:12px 20px;">
+                <div style="background:#fff; border:1px solid var(--border-color); border-radius:var(--radius-sm); padding:10px 14px;">
+                  <strong style="font-size:0.85rem; display:block; margin-bottom:8px;">
+                    Pedidos de "<%= fila.nombre_metodo %>" — <%= fila.tipo_entrega %> (Mostrando hasta 50 más recientes):
+                  </strong>
+                  <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                    <% fila.pedidos_celda.forEach(pCel => { %>
+                      <a href="/admin/pedidos/<%= pCel.id_pedido %>" class="btn-sm" style="font-size:0.78rem;">
+                        <strong>#<%= pCel.id_pedido %></strong> · <%= pCel.cliente_nombre %> · <%= formatoCOP(pCel.total) %> (<%= new Date(pCel.fecha_pedido).toLocaleDateString('es-CO') %>)
+                      </a>
+                    <% }) %>
+                  </div>
+                </div>
+              </td>
+            </tr>
+          <% } %>
         <% }) %>
       </tbody>
     </table>
@@ -199,5 +940,13 @@
 
   <%- include('./partials/_paginacion') %>
 <% } %>
+
+<script>
+  function toggleFilaDetalle(idElemento) {
+    const el = document.getElementById(idElemento);
+    if (!el) return;
+    el.style.display = (el.style.display === 'none' || el.style.display === '') ? 'table-row' : 'none';
+  }
+</script>
 
 <%- include('../../partials/footer') %>
