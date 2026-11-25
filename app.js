@@ -1,6 +1,6 @@
 /**
  * Archivo: app.js
- * Propósito: Punto de entrada de la aplicación, configuración de Express, sesiones, EJS y rutas.
+ * Propósito: Punto de entrada de la aplicación, configuración de Express, sesiones en BD, EJS y rutas.
  */
 require('dotenv').config();
 const express = require('express');
@@ -9,6 +9,9 @@ const path = require('path');
 const { pool, verificarConexion } = require('./config/db');
 const { obtenerRutaPorRol } = require('./helpers/rutaPorRol');
 const { configPuntos } = require('./config/puntos');
+
+// Importar el almacén de sesiones para MySQL
+const MySQLStore = require('express-mysql-session')(session);
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -24,10 +27,19 @@ app.use(express.json());
 // 3. Archivos estáticos
 app.use(express.static(path.join(__dirname, 'public')));
 
-// 4. Configuración de sesiones
+// 4. Configuración del almacén de sesiones en MySQL (Ajuste para Vercel Serverless)
+const sessionStore = new MySQLStore({
+  clearExpired: true,
+  checkExpirationInterval: 900000, // Limpiar cada 15 minutos
+  expiration: 14400000 // La sesión dura 4 horas
+}, pool);
+
+// Configuración de sesiones seguras
 app.use(
   session({
+    key: 'pijic_session',
     secret: process.env.SESSION_SECRET || 'secreto_desarrollo_pijic',
+    store: sessionStore,
     resave: false,
     saveUninitialized: false,
     cookie: {
