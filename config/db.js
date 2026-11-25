@@ -1,6 +1,6 @@
 /**
  * Archivo: config/db.js
- * Propósito: Configurar y exportar el pool de conexiones a MySQL con soporte de promesas.
+ * Propósito: Configurar y exportar el pool de conexiones a MySQL con soporte de promesas y SSL.
  */
 require('dotenv').config();
 const mysql = require('mysql2/promise');
@@ -15,7 +15,10 @@ const pool = mysql.createPool({
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
-   decimalNumbers: true // Convierte DECIMAL de MySQL a Number en JS para facilitar cálculos
+  decimalNumbers: true, // Convierte DECIMAL de MySQL a Number en JS para facilitar cálculos
+  ssl: process.env.DB_SSL === 'true'
+    ? { minVersion: 'TLSv1.2', rejectUnauthorized: true }
+    : undefined
 });
 
 /**
@@ -24,7 +27,7 @@ const pool = mysql.createPool({
 async function verificarConexion() {
   try {
     const connection = await pool.getConnection();
-    console.log('✅ Conexión exitosa a la base de datos MySQL:', process.env.DB_NAME);
+    console.log('✅ Conexión exitosa a la base de datos MySQL:', process.env.DB_NAME || 'ecommerce_ropa');
     connection.release();
   } catch (error) {
     console.error('❌ Error al conectar a la base de datos MySQL:', error.message);
