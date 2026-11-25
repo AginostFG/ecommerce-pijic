@@ -16,6 +16,9 @@ const MySQLStore = require('express-mysql-session')(session);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Confiar en el proxy inverso de Vercel (necesario para cookies de sesión en HTTPS)
+app.set('trust proxy', 1);
+
 // 1. Configuración del motor de plantillas EJS
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
@@ -134,8 +137,12 @@ app.use((err, req, res, next) => {
   });
 });
 
-// 11. Arranque del servidor
-app.listen(PORT, async () => {
-  console.log(`🚀 Servidor ejecutándose en http://localhost:${PORT}`);
-  await verificarConexion();
-});
+// 11. Arranque del servidor (local) y exportación (Vercel)
+if (require.main === module) {
+  app.listen(PORT, async () => {
+    console.log(`🚀 Servidor ejecutándose en http://localhost:${PORT}`);
+    await verificarConexion();
+  });
+}
+
+module.exports = app;
